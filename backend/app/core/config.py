@@ -1,13 +1,14 @@
 import json
-from typing import List, Union
+import os
+from typing import List, Optional, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings with environment variable overrides."""
-    PROJECT_NAME: str = "GeoLens AI"
-    VERSION: str = "0.1.0"
+    PROJECT_NAME: str = "AI Location Analysis"
+    VERSION: str = "0.2.0"
     ENVIRONMENT: str = "development"
     API_V1_PREFIX: str = "/api/v1"
 
@@ -29,6 +30,11 @@ class Settings(BaseSettings):
         "image/webp",
     ]
 
+    # External Provider Credentials & Headers (kept strictly backend-side)
+    MAPILLARY_CLIENT_TOKEN: Optional[str] = None
+    WIKIMEDIA_USER_AGENT: str = "AILocationAnalysis/1.0 (educational-geolocation-system; mailto:contact@example.com)"
+    DETECTION_CONFIDENCE_THRESHOLD: float = 0.35
+
     @field_validator("ALLOWED_ORIGINS", "ALLOWED_IMAGE_TYPES", mode="before")
     @classmethod
     def parse_json_or_list(cls, v):
@@ -40,7 +46,7 @@ class Settings(BaseSettings):
         return v
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",

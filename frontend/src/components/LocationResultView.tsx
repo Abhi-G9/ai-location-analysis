@@ -146,7 +146,12 @@ export const LocationResultView: React.FC<LocationResultViewProps> = ({ result }
                   </p>
                 </div>
 
-                <div className="flex items-center space-x-2 flex-shrink-0">
+                <div className="flex items-center space-x-2 flex-shrink-0 flex-wrap gap-1">
+                  {loc.detection_source && (
+                    <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {loc.detection_source}
+                    </span>
+                  )}
                   <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
                     {loc.confidence_level}
                   </span>
@@ -257,6 +262,37 @@ export const LocationResultView: React.FC<LocationResultViewProps> = ({ result }
                     </li>
                   ))}
                 </ul>
+
+                {loc.reference_photo && (
+                  <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-start space-x-3 text-[11px] bg-white p-2.5 rounded border border-slate-200">
+                    {loc.reference_photo.image_url && (
+                      <img
+                        src={loc.reference_photo.image_url}
+                        alt={loc.reference_photo.title || 'Reference photo'}
+                        className="w-12 h-12 object-cover rounded flex-shrink-0 border border-slate-200"
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="space-y-0.5 min-w-0">
+                      <span className="font-semibold text-slate-800 block truncate">
+                        Reference: {loc.reference_photo.title || 'Landmark Photo'}
+                      </span>
+                      <p className="text-slate-500 text-[10px]">
+                        Author: {loc.reference_photo.author || 'Verified Contributor'} | License: {loc.reference_photo.license || 'CC'}
+                      </p>
+                      {loc.reference_photo.source_page && (
+                        <a
+                          href={loc.reference_photo.source_page}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-[10px] block"
+                        >
+                          View source archive &rarr;
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -1,19 +1,31 @@
+import os
 from datetime import datetime, timezone
 import io
 import logging
 from typing import Any, Dict, List, Optional
 import numpy as np
-from PIL import Image, ImageDraw, ImageEnhance
+from PIL import Image, ImageEnhance
 
 from backend.app.services.geo_provider import LocalCuratedDatasetProvider, haversine_distance_km
+from backend.app.services.image_retrieval_service import get_local_reference_photos
 from backend.app.services.ranking_service import rank_candidates
-from backend.app.services.reference_store import _create_synthetic_reference_image
 from backend.app.services.retrieval_service import retrieve_candidate_locations
 from backend.app.services.verification_service import verify_geolocation_prediction
 
 logger = logging.getLogger("geolens.evaluation")
 
 _cached_evaluation_report: Optional[Dict[str, Any]] = None
+
+
+def _get_sample_image(place_id: str) -> Image.Image:
+    """Loads a genuine photographic sample for testing evaluation."""
+    photos = get_local_reference_photos(place_id)
+    if photos and os.path.exists(photos[0]["path"]):
+        try:
+            return Image.open(photos[0]["path"]).convert("RGB")
+        except Exception:
+            pass
+    return Image.new("RGB", (400, 300), color=(180, 180, 180))
 
 
 def run_benchmark_evaluation() -> Dict[str, Any]:
@@ -40,7 +52,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "positive",
             "description": "Seven Wonders Park photo with lake and miniature Eiffel Tower",
             "target_id": "seven-wonders-park",
-            "image": _create_synthetic_reference_image("seven-wonders-park"),
+            "image": _get_sample_image("seven-wonders-park"),
             "exif": {"has_gps": False, "gps": None},
             "ocr": {"combined_text": "SEVEN WONDERS PARK KOTA", "candidate_geo_clues": ["seven wonders", "kota"]},
             "clip_env": "urban park or public garden",
@@ -50,7 +62,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "positive",
             "description": "Chambal Hanging Bridge with EXIF camera GPS telemetry",
             "target_id": "chambal-hanging-bridge",
-            "image": _create_synthetic_reference_image("chambal-hanging-bridge"),
+            "image": _get_sample_image("chambal-hanging-bridge"),
             "exif": {
                 "has_gps": True,
                 "gps": {"latitude": 25.1432, "longitude": 75.8083, "coordinate_provenance": "EXIF GPS"},
@@ -63,7 +75,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "positive",
             "description": "Garh Palace historical sandstone facade with museum signage",
             "target_id": "garh-palace-kota",
-            "image": _create_synthetic_reference_image("garh-palace-kota"),
+            "image": _get_sample_image("garh-palace-kota"),
             "exif": {"has_gps": False, "gps": None},
             "ocr": {"combined_text": "KOTA CITY GARH PALACE MUSEUM", "candidate_geo_clues": ["garh palace", "kota"]},
             "clip_env": "ancient fort or historic palace with sandstone walls",
@@ -73,7 +85,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "positive",
             "description": "Jagmandir Palace in Kishore Sagar lake",
             "target_id": "jagmandir-palace",
-            "image": _create_synthetic_reference_image("jagmandir-palace"),
+            "image": _get_sample_image("jagmandir-palace"),
             "exif": {"has_gps": False, "gps": None},
             "ocr": {"combined_text": "JAGMANDIR KISHORE SAGAR", "candidate_geo_clues": ["jagmandir", "kishore sagar"]},
             "clip_env": "palace or monument situated in water or lake island",
@@ -83,7 +95,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "positive",
             "description": "Kota Barrage dam and spillway gates on Chambal River",
             "target_id": "kota-barrage",
-            "image": _create_synthetic_reference_image("kota-barrage"),
+            "image": _get_sample_image("kota-barrage"),
             "exif": {"has_gps": False, "gps": None},
             "ocr": {"combined_text": "KOTA BARRAGE CHAMBAL DAM", "candidate_geo_clues": ["barrage", "chambal"]},
             "clip_env": "hydroelectric dam or river spillway barrage",
@@ -93,7 +105,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "positive",
             "description": "Godavari Dham Hanuman Temple riverside spire",
             "target_id": "godavari-dham-temple",
-            "image": _create_synthetic_reference_image("godavari-dham-temple"),
+            "image": _get_sample_image("godavari-dham-temple"),
             "exif": {"has_gps": False, "gps": None},
             "ocr": {"combined_text": "SHREE GODAVARI DHAM KOTA", "candidate_geo_clues": ["godavari dham", "kota"]},
             "clip_env": "hindu temple or religious sanctuary",
@@ -105,7 +117,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "challenging",
             "description": "Chambal Hanging Bridge - darkened night contrast with partial crop",
             "target_id": "chambal-hanging-bridge",
-            "image": ImageEnhance.Brightness(_create_synthetic_reference_image("chambal-hanging-bridge")).enhance(0.4),
+            "image": ImageEnhance.Brightness(_get_sample_image("chambal-hanging-bridge")).enhance(0.4),
             "exif": {"has_gps": False, "gps": None},
             "ocr": {"combined_text": "NH-52 CABLE BRIDGE", "candidate_geo_clues": ["cable bridge", "nh-52"]},
             "clip_env": "bridge or infrastructure",
@@ -115,7 +127,7 @@ def run_benchmark_evaluation() -> Dict[str, Any]:
             "type": "challenging",
             "description": "Seven Wonders Park - tightly cropped landmark detail",
             "target_id": "seven-wonders-park",
-            "image": _create_synthetic_reference_image("seven-wonders-park").crop((50, 50, 350, 250)),
+            "image": _get_sample_image("seven-wonders-park").crop((20, 20, 280, 220)),
             "exif": {"has_gps": False, "gps": None},
             "ocr": {"combined_text": "SEVEN WONDERS", "candidate_geo_clues": ["seven wonders"]},
             "clip_env": "urban park or public garden",

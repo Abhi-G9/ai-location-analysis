@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from backend.app.core.config import settings
 
 
 def test_root_endpoint(client: TestClient):
@@ -17,6 +18,6 @@ def test_health_check_endpoint(client: TestClient):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
-    assert data["version"] == "0.1.0"
+    assert data["version"] == settings.VERSION
     assert "timestamp" in data
-    assert data["service"] == "GeoLens AI"
+    assert data["service"] == settings.PROJECT_NAME

@@ -302,6 +302,33 @@ def build_location_result(
     elif verification_result.get("is_verified") and verification_result.get("precision_level") == "specific_landmark":
         exact_address = top_candidate.get("description")
 
+    # Detection source categorization
+    has_gps = exif_data.get("has_gps") and exif_data.get("gps") is not None
+    distance_km = top_candidate.get("distance_km")
+    gps_near = has_gps and distance_km is not None and distance_km < 1.0
+
+    ocr_text = ocr_data.get("combined_text", "").lower()
+    candidate_name = top_candidate.get("name", "").lower()
+    keywords = [kw.lower() for kw in top_candidate.get("keywords", [])]
+    ocr_name_match = (candidate_name in ocr_text) or any(kw in ocr_text for kw in keywords if len(kw) > 3)
+
+    dinov2_sim = float(top_candidate.get("dinov2_structural_similarity") or 0.0)
+    clip_sim = float(top_candidate.get("clip_visual_similarity") or 0.0)
+    has_strong_visual = dinov2_sim >= 0.40 or clip_sim >= 0.30
+
+    if gps_near and (ocr_name_match or has_strong_visual):
+        detection_source = "Multi-Modal Convergence (GPS + Visual)"
+    elif gps_near:
+        detection_source = "EXIF GPS Telemetry"
+    elif ocr_name_match and has_strong_visual:
+        detection_source = "Multi-Modal Convergence (OCR + Visual)"
+    elif ocr_name_match:
+        detection_source = "OCR Signage & Text"
+    elif has_strong_visual:
+        detection_source = "Visual Landmark Matching (DINOv2 & OpenCLIP)"
+    else:
+        detection_source = "Visual Feature Alignment"
+
     # Map precision
     raw_precision = verification_result.get("precision_level", "city")
     precision_map = {
@@ -338,13 +365,20 @@ def build_location_result(
     else:
         metadata_clues.append("No EXIF metadata embedded in file.")
 
+    # Reference Photo Metadata & Provenance
+    ref_photo = top_candidate.get("reference_photo")
+
     # Matching evidence
     matching_evidence = list(verification_result.get("supporting_evidence", []))
-    if not matching_evidence:
+    if ref_photo and ref_photo.get("title"):
+        matching_evidence.insert(0, f"Matched against verified reference photograph '{ref_photo['title']}' ({ref_photo.get('license', 'Creative Commons')}).")
+    elif not matching_evidence:
         matching_evidence.append(f"Visual alignment with {place_name} reference features.")
 
     # Sources consulted
     sources_consulted = [top_candidate.get("source", "OpenStreetMap")]
+    if ref_photo and ref_photo.get("source"):
+        sources_consulted.insert(0, f"{ref_photo['source']} Reference Photo Archive")
     if ocr_data.get("total_lines_found", 0) > 0:
         sources_consulted.append("RapidOCR Text Reader")
     if clip_data.get("model_available"):
@@ -383,6 +417,8 @@ def build_location_result(
         "geographic_precision": geographic_precision,
         "confidence_level": verification_result.get("confidence_category", "Plausible Candidate"),
         "confidence_basis": verification_result.get("confidence_basis", ""),
+        "detection_source": detection_source,
+        "reference_photo": ref_photo,
         "landmarks_and_architecture": landmarks_and_architecture,
         "text_found": text_found,
         "metadata_clues": metadata_clues,

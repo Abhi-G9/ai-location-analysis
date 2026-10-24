@@ -145,6 +145,7 @@ def rank_candidates(
             "inlier_ratio": inlier_ratio,
             "structural_agreement": structural_agreement,
             "evidence_breakdown": evidence_breakdown,
+            "reference_photo": ref_data.get("reference_photo") if ref_data else None,
         })
 
     # Sort descending by composite score, then by DINOv2 similarity

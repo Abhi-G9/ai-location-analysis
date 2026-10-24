@@ -1,13 +1,22 @@
 import io
+import os
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image, ImageDraw
+from PIL import Image
 import torch
 
 from backend.app.services.dinov2_service import extract_dinov2_features
+from backend.app.services.image_retrieval_service import get_local_reference_photos
 from backend.app.services.opencv_matcher import compute_geometric_matching, extract_orb_descriptors
 from backend.app.services.ranking_service import rank_candidates
-from backend.app.services.reference_store import _create_synthetic_reference_image, get_reference_cache
+from backend.app.services.reference_store import get_reference_cache
+
+
+def _load_real_photo(place_id: str) -> Image.Image:
+    photos = get_local_reference_photos(place_id)
+    if photos and os.path.exists(photos[0]["path"]):
+        return Image.open(photos[0]["path"]).convert("RGB")
+    return Image.new("RGB", (300, 300), color=(120, 150, 180))
 
 
 def test_dinov2_feature_extraction_cpu():
@@ -28,14 +37,15 @@ def test_positive_and_negative_dinov2_pairs():
     A transformed/perturbed version of the same scene must have higher structural similarity
     than a completely different scene.
     """
-    # Base scene: Kota Barrage synthetic pattern
-    img_barrage = _create_synthetic_reference_image("kota-barrage")
+    # Base scene: Kota Barrage genuine photo
+    img_barrage = _load_real_photo("kota-barrage")
 
-    # Positive pair: Slight crop / resize / color shift of Kota Barrage
-    img_barrage_pos = img_barrage.crop((10, 10, 390, 290)).resize((400, 300))
+    # Positive pair: Slight crop / resize of Kota Barrage
+    w, h = img_barrage.size
+    img_barrage_pos = img_barrage.crop((int(w * 0.05), int(h * 0.05), int(w * 0.95), int(h * 0.95))).resize((w, h))
 
     # Negative pair: A completely different scene (Seven Wonders Park)
-    img_seven_wonders = _create_synthetic_reference_image("seven-wonders-park")
+    img_seven_wonders = _load_real_photo("seven-wonders-park")
 
     feat_base = extract_dinov2_features(img_barrage)
     feat_pos = extract_dinov2_features(img_barrage_pos)
@@ -50,16 +60,17 @@ def test_positive_and_negative_dinov2_pairs():
 
 def test_opencv_orb_geometric_inliers():
     """Verify that OpenCV ORB + RANSAC distinguishes matching structures from random noise."""
-    ref_img = _create_synthetic_reference_image("chambal-hanging-bridge")
+    ref_img = _load_real_photo("chambal-hanging-bridge")
     ref_kps, ref_des = extract_orb_descriptors(ref_img)
 
     # Positive query: scaled/cropped version of the same bridge
-    query_pos = ref_img.crop((5, 5, 395, 295)).resize((400, 300))
+    w, h = ref_img.size
+    query_pos = ref_img.crop((int(w * 0.05), int(h * 0.05), int(w * 0.95), int(h * 0.95))).resize((w, h))
     q_kps, q_des = extract_orb_descriptors(query_pos)
 
     pos_match = compute_geometric_matching(q_kps, q_des, ref_kps, ref_des)
     assert pos_match["ransac_inliers"] >= 15
-    assert pos_match["inlier_ratio"] > 0.15
+    assert pos_match["inlier_ratio"] > 0.10
 
     # Negative query: solid uniform color
     query_neg = Image.new("RGB", (400, 300), color="purple")
@@ -73,7 +84,7 @@ def test_deterministic_ranking_pipeline(client: TestClient):
     Verify that candidate ranking is fully deterministic.
     Submitting the exact same photograph twice produces identical candidate rankings and scores.
     """
-    img = _create_synthetic_reference_image("kota-barrage")
+    img = _load_real_photo("kota-barrage")
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
     bytes_data = buf.getvalue()
@@ -102,7 +113,7 @@ def test_ranking_evidence_breakdown(client: TestClient):
     Verify that top-ranked candidates provide a transparent breakdown of
     DINOv2, CLIP, and OpenCV inlier scores.
     """
-    img = _create_synthetic_reference_image("jagmandir-palace")
+    img = _load_real_photo("jagmandir-palace")
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
 

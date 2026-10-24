@@ -151,6 +151,17 @@ export interface LocationCandidateSummary {
   confidence_hint?: string | null;
 }
 
+export interface ReferencePhotoAttribution {
+  filename?: string;
+  title?: string;
+  source?: string;
+  source_page?: string;
+  author?: string;
+  license?: string;
+  license_url?: string;
+  image_url?: string;
+}
+
 export interface LocationResult {
   is_determined: boolean;
   unreliable_reason?: string | null;
@@ -165,6 +176,8 @@ export interface LocationResult {
   geographic_precision: string;
   confidence_level: string;
   confidence_basis: string;
+  detection_source?: string | null;
+  reference_photo?: ReferencePhotoAttribution | null;
   landmarks_and_architecture: string[];
   text_found: string[];
   metadata_clues: string[];

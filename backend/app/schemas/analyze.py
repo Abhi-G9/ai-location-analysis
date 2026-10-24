@@ -166,6 +166,10 @@ class LocationResult(BaseModel):
     geographic_precision: str = "unknown"
     confidence_level: str = "Unverified"
     confidence_basis: str = ""
+    detection_source: str = "Unverified"
+
+    # Reference Image & Attribution
+    reference_photo: Optional[Dict[str, Any]] = None
 
     # Why This Location?
     landmarks_and_architecture: List[str] = []
