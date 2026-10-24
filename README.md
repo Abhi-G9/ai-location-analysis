@@ -6,14 +6,14 @@ Instead of treating image geolocation as a "black box" that guesses an exact coo
 
 ---
 
-## Current Status: Phase 2 Complete (Visual Clues & Image Analysis)
+## Current Status: Phase 3 Complete (Geographic Candidate Database)
 
 This project is built phase-by-phase following strict engineering and pedagogical standards:
 
 - [x] **Phase 1: Project Foundation & Image Intake** (Complete)
 - [x] **Phase 2: Visual Clues & Metadata Extraction** (Complete)
-- [ ] **Phase 3: Geographic Candidate Database (Kota / Rajasthan)** (Next)
-- [ ] **Phase 4: AI Visual Matching & Ranking (CLIP, DINOv2, OpenCV)**
+- [x] **Phase 3: Geographic Candidate Database (Kota / Rajasthan)** (Complete)
+- [ ] **Phase 4: AI Visual Matching & Ranking (CLIP, DINOv2, OpenCV)** (Next)
 - [ ] **Phase 5: Verification, Leaflet Mapping & Honest Confidence**
 - [ ] **Phase 6: Evaluation, Privacy Hardening & Release Readiness**
 
@@ -111,7 +111,28 @@ Execute the automated test suite with pytest:
 .\.venv\Scripts\pytest -v
 ```
 
-All 15 tests should pass, verifying health status, valid format uploads (JPEG, PNG, WebP), EXIF GPS coordinates, graceful handling of missing metadata, RapidOCR sign text detection, OpenCLIP semantic classification, computer vision heuristics (lighting, sharpness, dominant colors), rejection of non-images, oversized files, corrupted payloads, and path traversal protection.
+All 23 tests should pass, verifying health status, valid format uploads (JPEG, PNG, WebP), EXIF GPS coordinates, graceful handling of missing metadata, RapidOCR sign text detection, OpenCLIP semantic classification, computer vision heuristics (lighting, sharpness, dominant colors), rejection of non-images, candidate database browsing, provenance verification, Haversine spatial calculations, candidate retrieval by GPS and text clues, and honest abstention guardrails.
+
+---
+
+## Phase 3 Milestone: Geographic Candidate Database & Retrieval
+
+In Phase 3, we connected visual clue forensics with documented, traceable geographic reference data:
+
+1. **Curated Kota, Rajasthan Geographic Dataset**:
+   - 12 verified landmark locations including Kota Barrage, Chambal Hanging Bridge, Seven Wonders Park, Jagmandir Palace, Garh Palace, Chambal Riverfront, Abheda Mahal, Godavari Dham Temple, Kansua Temple, Landmark City Coaching District, Gaipernath Waterfall, and Brijvilas Palace Museum.
+   - Every candidate place includes verified decimal coordinates, precision classification (specific landmark, neighborhood), category, description, and traceable open data licensing (OpenStreetMap Node/Way IDs, ASI, and Rajasthan Tourism).
+2. **Provider Abstraction Architecture (`GeoDataProvider`)**:
+   - Abstract interface supporting swappable data providers (`LocalCuratedDatasetProvider`, `NominatimGeoProvider`).
+   - Nominatim integration complies with OpenStreetMap usage policy (rate-limit enforcement, custom user agent, and safe network timeout fallbacks).
+3. **Multi-Signal Candidate Retrieval (`retrieval_service.py`)**:
+   - Matches candidates across independent signals:
+     - **Spatial Signal**: EXIF GPS proximity within configurable radii (Haversine formula).
+     - **Textual Signal**: RapidOCR sign and landmark keyword matching with two-way token verification.
+     - **Semantic Signal**: OpenCLIP environment category alignment with dynamic confidence thresholds.
+   - Separation of retrieval from ranking: The system aggregates candidate possibilities without prematurely declaring a final winner.
+4. **Honest Abstention & Anti-Hallucination**:
+   - If no candidate in the database matches the extracted clues, the system cleanly returns `abstention: true` with an explicit notice, refusing to fabricate candidates.
 
 ---
 

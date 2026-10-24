@@ -79,11 +79,39 @@ class CLIPAnalysis(BaseModel):
     note: str
 
 
+class CandidatePlace(BaseModel):
+    id: str
+    name: str
+    category: str
+    latitude: float
+    longitude: float
+    precision: str = "specific_landmark"
+    city: str
+    district: str
+    state: str
+    country: str = "India"
+    description: str
+    source: str
+    license: str
+    distance_km: Optional[float] = None
+    retrieval_reasons: List[str] = []
+    matched_clues: List[str] = []
+    visual_features: List[str] = []
+
+
+class CandidateRetrievalResult(BaseModel):
+    dataset_scope: str = "Kota, Rajasthan, India"
+    total_database_places: int
+    candidates_retrieved_count: int
+    candidates: List[CandidatePlace] = []
+    abstention: bool = False
+    message: str
+
+
 class AnalyzeResponse(BaseModel):
     """
     Structured image-analysis results returned by POST /api/v1/analyze.
-    Incorporates safe intake, EXIF metadata, OCR text detection,
-    visual heuristics, and CLIP semantic scene understanding.
+    Phase 3 integrates candidate location retrieval from the geographic database.
     """
     status: str = Field(..., description="Status of the image intake, e.g. 'valid'")
     filename: str = Field(..., description="Sanitized original filename")
@@ -91,10 +119,11 @@ class AnalyzeResponse(BaseModel):
     format: str = Field(..., description="Image format (JPEG, PNG, WEBP)")
     size_bytes: int = Field(..., description="File size in bytes")
     dimensions: ImageDimensions = Field(..., description="Image width and height in pixels")
-    phase: str = Field(default="Phase 2: Visual Clues & Image Analysis")
+    phase: str = Field(default="Phase 3: Geographic Candidate Database")
     exif: EXIFMetadata
     ocr: OCRResult
     heuristics: VisualHeuristics
     clip: CLIPAnalysis
+    retrieval: CandidateRetrievalResult
     summary_clues: List[str] = Field(default=[], description="Bullet points of identified visual clues")
     message: str = Field(..., description="Human-readable summary of analysis results")

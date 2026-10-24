@@ -10,6 +10,7 @@ from backend.app.schemas.analyze import AnalyzeResponse, ImageDimensions
 from backend.app.services.clip_service import analyze_with_clip
 from backend.app.services.exif_service import extract_exif_metadata
 from backend.app.services.ocr_service import extract_text_clues
+from backend.app.services.retrieval_service import retrieve_candidate_locations
 from backend.app.services.visual_clues_service import analyze_image_heuristics
 
 logger = logging.getLogger("geolens.analyze")
@@ -93,7 +94,15 @@ async def analyze_image(
     # 5. Extract semantic visual clues with OpenCLIP
     clip_result = analyze_with_clip(oriented_img)
 
-    # 6. Build evidence summary clues
+    # 6. Retrieve candidate places from geographic database using extracted clues
+    retrieval_result = retrieve_candidate_locations(
+        exif_data=exif_result,
+        ocr_data=ocr_result,
+        clip_data=clip_result,
+        max_candidates=5,
+    )
+
+    # 7. Build evidence summary clues
     summary_clues: List[str] = []
 
     if exif_result.get("has_gps") and exif_result.get("gps"):
@@ -125,9 +134,16 @@ async def analyze_image(
         f"Visual properties: {heuristics_result['framing']} format, {heuristics_result['lighting_condition']}, {heuristics_result['focus_quality']}."
     )
 
+    if retrieval_result["candidates"]:
+        names = [c["name"] for c in retrieval_result["candidates"][:3]]
+        summary_clues.append(f"Geographic Candidate Retrieval: {len(retrieval_result['candidates'])} place(s) retrieved ({', '.join(names)}).")
+    else:
+        summary_clues.append("Geographic Candidate Retrieval: No matching places in Kota database; abstaining.")
+
     message = (
-        f"Analyzed '{sanitized_name}': Extracted {len(summary_clues)} investigative clues. "
-        "Candidate location retrieval and spatial verification will be activated in Phases 3-5."
+        f"Analyzed '{sanitized_name}': Extracted {len(summary_clues)} investigative clues and retrieved "
+        f"{len(retrieval_result['candidates'])} candidate place(s) from the Kota, Rajasthan database. "
+        "Multi-modal visual feature ranking will be executed in Phase 4."
     )
 
     return AnalyzeResponse(
@@ -137,11 +153,12 @@ async def analyze_image(
         format=format_name,
         size_bytes=len(raw_bytes),
         dimensions=ImageDimensions(width=width, height=height),
-        phase="Phase 2: Visual Clues & Image Analysis",
+        phase="Phase 3: Geographic Candidate Database",
         exif=exif_result,
         ocr=ocr_result,
         heuristics=heuristics_result,
         clip=clip_result,
+        retrieval=retrieval_result,
         summary_clues=summary_clues,
         message=message,
     )

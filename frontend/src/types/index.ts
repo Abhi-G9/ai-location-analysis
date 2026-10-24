@@ -83,6 +83,35 @@ export interface CLIPAnalysis {
   note: string;
 }
 
+export interface CandidatePlace {
+  id: string;
+  name: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  precision: string;
+  city: string;
+  district: string;
+  state: string;
+  country: string;
+  description: string;
+  source: string;
+  license: string;
+  distance_km?: number | null;
+  retrieval_reasons: string[];
+  matched_clues: string[];
+  visual_features: string[];
+}
+
+export interface CandidateRetrievalResult {
+  dataset_scope: string;
+  total_database_places: number;
+  candidates_retrieved_count: number;
+  candidates: CandidatePlace[];
+  abstention: boolean;
+  message: string;
+}
+
 export interface AnalyzeResponse {
   status: string;
   filename: string;
@@ -95,6 +124,7 @@ export interface AnalyzeResponse {
   ocr: OCRResult;
   heuristics: VisualHeuristics;
   clip: CLIPAnalysis;
+  retrieval: CandidateRetrievalResult;
   summary_clues: string[];
   message: string;
 }

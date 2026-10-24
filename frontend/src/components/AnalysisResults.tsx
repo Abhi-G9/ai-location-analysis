@@ -11,6 +11,8 @@ import {
   Info,
   Layers,
   Search,
+  Compass,
+  ShieldCheck,
 } from 'lucide-react';
 import { AnalyzeResponse } from '../types';
 
@@ -20,9 +22,9 @@ interface AnalysisResultsProps {
 }
 
 export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onReset }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'exif' | 'ocr' | 'clip' | 'heuristics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'candidates' | 'exif' | 'ocr' | 'clip' | 'heuristics'>('overview');
 
-  const { exif, ocr, clip, heuristics } = result;
+  const { exif, ocr, clip, heuristics, retrieval } = result;
 
   return (
     <div className="w-full bg-slate-800/60 border border-slate-700/80 rounded-2xl p-6 sm:p-8 backdrop-blur-sm shadow-xl mt-6 animate-fadeIn">
@@ -34,9 +36,9 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="text-xl font-bold text-white">Visual Analysis & Clues Extracted</h3>
+              <h3 className="text-xl font-bold text-white">Visual Clues & Geographic Retrieval</h3>
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                Phase 2 Complete
+                Phase 3 Complete
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -59,7 +61,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
       <div className="my-6 bg-slate-900/80 border border-sky-900/40 rounded-xl p-5">
         <div className="flex items-center space-x-2 text-sky-400 font-semibold text-sm mb-3">
           <Eye className="w-4 h-4" />
-          <span>Extracted Investigative Clues Summary</span>
+          <span>Extracted Investigative Clues & Geographic Signals</span>
         </div>
         <ul className="space-y-2 text-xs text-slate-300">
           {result.summary_clues.map((clue, idx) => (
@@ -83,6 +85,20 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         >
           <Layers className="w-4 h-4" />
           <span>Overview</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('candidates')}
+          className={`pb-3 px-3 text-xs font-semibold flex items-center space-x-1.5 border-b-2 transition whitespace-nowrap ${
+            activeTab === 'candidates'
+              ? 'border-emerald-400 text-emerald-300'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Compass className="w-4 h-4 text-emerald-400" />
+          <span>
+            Candidate Places ({retrieval.candidates.length > 0 ? `${retrieval.candidates.length} Retrieved` : 'Abstained'})
+          </span>
         </button>
 
         <button
@@ -136,141 +152,246 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* EXIF Snapshot */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+        <div className="space-y-6">
+          {/* Candidate Locations Snapshot */}
+          <div className="bg-slate-900/80 border border-emerald-500/30 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                <Camera className="w-4 h-4 text-sky-400" />
-                <span>EXIF Metadata Status</span>
+              <span className="text-sm font-bold text-white flex items-center space-x-2">
+                <Compass className="w-5 h-5 text-emerald-400" />
+                <span>Geographic Candidate Retrieval (Kota, Rajasthan)</span>
               </span>
-              <span
-                className={`text-[10px] px-2 py-0.5 rounded font-mono ${
-                  exif.has_gps
-                    ? 'bg-emerald-500/20 text-emerald-300'
-                    : exif.has_exif
-                    ? 'bg-sky-500/20 text-sky-300'
-                    : 'bg-slate-700 text-slate-400'
-                }`}
-              >
-                {exif.has_gps ? 'GPS Coordinates Available' : exif.has_exif ? 'Metadata Present' : 'Scrubbed / Missing'}
+              <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono">
+                {retrieval.candidates.length} Place(s) Retrieved
               </span>
             </div>
-            {exif.has_gps && exif.gps ? (
-              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
-                <div className="flex items-center space-x-1.5 font-bold mb-1">
-                  <MapPin className="w-4 h-4 text-emerald-400" />
-                  <span>
-                    Lat: {exif.gps.latitude.toFixed(6)} &bull; Lon: {exif.gps.longitude.toFixed(6)}
-                  </span>
-                </div>
-                <p className="text-[11px] text-emerald-300/80">Source: {exif.gps.coordinate_provenance}</p>
+
+            {retrieval.abstention || retrieval.candidates.length === 0 ? (
+              <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/60 text-xs text-slate-300">
+                <span className="font-semibold text-amber-300 block mb-1">Honest Abstention:</span>
+                <span>{retrieval.message}</span>
               </div>
             ) : (
-              <p className="text-xs text-slate-400">
-                {exif.camera_make || exif.camera_model
-                  ? `Captured with ${exif.camera_make || ''} ${exif.camera_model || ''}. GPS tags absent.`
-                  : 'No embedded GPS tags or camera metadata were found in this file.'}
-              </p>
-            )}
-          </div>
-
-          {/* OCR Snapshot */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                <FileText className="w-4 h-4 text-amber-400" />
-                <span>Visible Text Reading (RapidOCR)</span>
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                {ocr.total_lines_found} Region(s)
-              </span>
-            </div>
-            {ocr.candidate_geo_clues.length > 0 ? (
-              <div className="space-y-1.5">
-                <span className="text-[11px] text-slate-400 block">Candidate Geographic Keywords:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {ocr.candidate_geo_clues.map((kw, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs"
-                    >
-                      {kw}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : ocr.total_lines_found > 0 ? (
-              <p className="text-xs text-slate-300 truncate font-mono">
-                &ldquo;{ocr.combined_text}&rdquo;
-              </p>
-            ) : (
-              <p className="text-xs text-slate-400">No legible text found in this photograph.</p>
-            )}
-          </div>
-
-          {/* CLIP Snapshot */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <span>Top Scene Semantic Match (OpenCLIP)</span>
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">
-                ViT-B-32
-              </span>
-            </div>
-            {clip.top_environments.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-white">{clip.top_environments[0].label}</span>
-                  <span className="text-purple-300 font-mono">
-                    sim: {clip.top_environments[0].cosine_similarity.toFixed(3)}
-                  </span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                {retrieval.candidates.slice(0, 3).map((candidate) => (
                   <div
-                    className="bg-purple-500 h-1.5 rounded-full"
-                    style={{
-                      width: `${Math.max(
-                        5,
-                        Math.min(100, (clip.top_environments[0].cosine_similarity + 0.2) * 100)
-                      )}%`,
-                    }}
-                  />
-                </div>
+                    key={candidate.id}
+                    className="p-3.5 rounded-lg bg-slate-950/70 border border-slate-800 hover:border-slate-700 transition"
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-bold text-xs text-white line-clamp-1">{candidate.name}</span>
+                      {candidate.distance_km !== null && candidate.distance_km !== undefined && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 flex-shrink-0 ml-1">
+                          {candidate.distance_km} km
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-sky-400 block mb-2">{candidate.category}</span>
+                    <div className="text-[11px] font-mono text-slate-400 mb-2">
+                      {candidate.latitude.toFixed(4)}&deg; N, {candidate.longitude.toFixed(4)}&deg; E
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {candidate.matched_clues.map((clue, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700"
+                        >
+                          {clue}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <p className="text-xs text-slate-400">CLIP visual classification unavailable.</p>
             )}
           </div>
 
-          {/* Heuristics Snapshot */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                <Sliders className="w-4 h-4 text-emerald-400" />
-                <span>Lighting & Focus</span>
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                {heuristics.framing}
-              </span>
+          {/* Forensic Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* EXIF Snapshot */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
+                  <Camera className="w-4 h-4 text-sky-400" />
+                  <span>EXIF Metadata Status</span>
+                </span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded font-mono ${
+                    exif.has_gps
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : exif.has_exif
+                      ? 'bg-sky-500/20 text-sky-300'
+                      : 'bg-slate-700 text-slate-400'
+                  }`}
+                >
+                  {exif.has_gps ? 'GPS Coordinates Available' : exif.has_exif ? 'Metadata Present' : 'Scrubbed / Missing'}
+                </span>
+              </div>
+              {exif.has_gps && exif.gps ? (
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
+                  <div className="flex items-center space-x-1.5 font-bold mb-1">
+                    <MapPin className="w-4 h-4 text-emerald-400" />
+                    <span>
+                      Lat: {exif.gps.latitude.toFixed(6)} &bull; Lon: {exif.gps.longitude.toFixed(6)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-300/80">Source: {exif.gps.coordinate_provenance}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  {exif.camera_make || exif.camera_model
+                    ? `Captured with ${exif.camera_make || ''} ${exif.camera_model || ''}. GPS tags absent.`
+                    : 'No embedded GPS tags or camera metadata were found in this file.'}
+                </p>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2 bg-slate-800/60 rounded">
-                <span className="text-slate-400 text-[10px] block">Condition:</span>
-                <span className="text-slate-200 font-medium">{heuristics.lighting_condition}</span>
+
+            {/* OCR Snapshot */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
+                  <FileText className="w-4 h-4 text-amber-400" />
+                  <span>Visible Text Reading (RapidOCR)</span>
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                  {ocr.total_lines_found} Region(s)
+                </span>
               </div>
-              <div className="p-2 bg-slate-800/60 rounded">
-                <span className="text-slate-400 text-[10px] block">Detail:</span>
-                <span className="text-slate-200 font-medium">{heuristics.focus_quality}</span>
-              </div>
+              {ocr.candidate_geo_clues.length > 0 ? (
+                <div className="space-y-1.5">
+                  <span className="text-[11px] text-slate-400 block">Candidate Geographic Keywords:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ocr.candidate_geo_clues.map((kw, i) => (
+                      <span
+                        key={i}
+                        className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : ocr.total_lines_found > 0 ? (
+                <p className="text-xs text-slate-300 truncate font-mono">
+                  &ldquo;{ocr.combined_text}&rdquo;
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400">No legible text found in this photograph.</p>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: EXIF & GPS */}
+      {/* TAB 2: CANDIDATE PLACES (PHASE 3 CORE FEATURE) */}
+      {activeTab === 'candidates' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-800 text-xs">
+            <div>
+              <span className="text-slate-400 block text-[11px]">Database Scope:</span>
+              <span className="font-bold text-white">{retrieval.dataset_scope}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[11px]">Total Documented Landmarks:</span>
+              <span className="font-bold text-white font-mono">{retrieval.total_database_places} Places</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[11px]">Retrieved by Clues:</span>
+              <span className="font-bold text-emerald-400 font-mono">{retrieval.candidates.length} Matches</span>
+            </div>
+          </div>
+
+          {retrieval.abstention || retrieval.candidates.length === 0 ? (
+            <div className="p-6 rounded-xl bg-slate-900/80 border border-amber-500/30 text-center space-y-3">
+              <AlertCircle className="w-10 h-10 text-amber-400 mx-auto" />
+              <h4 className="text-sm font-bold text-white">Honest Abstention: No Candidate Match</h4>
+              <p className="text-xs text-slate-300 max-w-lg mx-auto">
+                {retrieval.message}
+              </p>
+              <div className="inline-flex items-center space-x-1.5 text-[11px] text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Anti-Hallucination Guardrail Active</span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {retrieval.candidates.map((candidate, idx) => (
+                <div
+                  key={candidate.id}
+                  className="bg-slate-900/70 border border-slate-800 hover:border-slate-700 rounded-xl p-5 transition space-y-3"
+                >
+                  <div className="flex items-start justify-between flex-wrap gap-2">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                          #{idx + 1}
+                        </span>
+                        <h4 className="text-base font-bold text-white">{candidate.name}</h4>
+                        <span className="text-xs px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                          {candidate.category}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">{candidate.description}</p>
+                    </div>
+
+                    {candidate.distance_km !== null && candidate.distance_km !== undefined && (
+                      <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {candidate.distance_km} km from EXIF
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Coordinates & Provenance */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs pt-1">
+                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 block">Verified Coordinates</span>
+                      <span className="font-mono text-slate-200">
+                        {candidate.latitude.toFixed(4)}&deg; N, {candidate.longitude.toFixed(4)}&deg; E
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">({candidate.precision})</span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 block">Location Hierarchy</span>
+                      <span className="text-slate-200">
+                        {candidate.city}, {candidate.district}, {candidate.state}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 block">Traceable Data Source</span>
+                      <span className="text-slate-300 truncate block" title={candidate.source}>
+                        {candidate.source}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{candidate.license}</span>
+                    </div>
+                  </div>
+
+                  {/* Retrieval Clues & Reasons */}
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                      <span className="text-slate-400 text-[11px]">Matched by:</span>
+                      {candidate.matched_clues.map((clue, cIdx) => (
+                        <span
+                          key={cIdx}
+                          className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-semibold"
+                        >
+                          {clue}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 italic">
+                      {candidate.retrieval_reasons.join(' • ')}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: EXIF & GPS */}
       {activeTab === 'exif' && (
         <div className="space-y-4">
           {exif.has_gps && exif.gps ? (
@@ -314,7 +435,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
               <div>
                 <span className="font-semibold text-slate-200 block mb-0.5">No GPS Coordinates in EXIF</span>
                 <span>
-                  Social platforms (WhatsApp, Twitter/X, Instagram) automatically scrub EXIF metadata upon upload to protect user privacy.
+                  Social platforms automatically scrub EXIF metadata upon upload to protect user privacy.
                   Our multi-stage pipeline relies primarily on visual clues (text, architecture, CLIP embeddings) when GPS tags are missing.
                 </span>
               </div>
@@ -369,7 +490,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </div>
       )}
 
-      {/* TAB 3: VISIBLE TEXT & OCR */}
+      {/* TAB 4: VISIBLE TEXT & OCR */}
       {activeTab === 'ocr' && (
         <div className="space-y-4">
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
@@ -421,7 +542,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </div>
       )}
 
-      {/* TAB 4: OPENCLIP SEMANTICS */}
+      {/* TAB 5: OPENCLIP SEMANTICS */}
       {activeTab === 'clip' && (
         <div className="space-y-4">
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
@@ -481,7 +602,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </div>
       )}
 
-      {/* TAB 5: HEURISTICS & PROPERTIES */}
+      {/* TAB 6: HEURISTICS & PROPERTIES */}
       {activeTab === 'heuristics' && (
         <div className="space-y-4">
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
@@ -546,10 +667,10 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         <span className="flex items-center space-x-1.5">
           <Info className="w-3.5 h-3.5 text-sky-400" />
           <span>
-            Phase 2 complete: Real clues extracted. Candidate location retrieval and geospatial matching begin in Phase 3.
+            Phase 3 complete: Candidate retrieval connected with Kota, Rajasthan dataset. Multi-modal AI ranking begins in Phase 4.
           </span>
         </span>
-        <span className="font-mono text-[11px] text-emerald-400">Pipeline Stage B Verified</span>
+        <span className="font-mono text-[11px] text-emerald-400">Pipeline Stage C Verified</span>
       </div>
     </div>
   );
