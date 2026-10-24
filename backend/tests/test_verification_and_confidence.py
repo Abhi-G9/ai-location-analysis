@@ -338,4 +338,40 @@ def test_api_analyze_returns_verification_structure(client):
     assert "confounding_factors" in v
     assert "abstention" in v
     assert "supporting_evidence" in v
-    assert data["phase"] == "Phase 5: Verification, Mapping & Confidence"
+    assert "location" in data
+    assert data["location"]["is_determined"] is False
+    assert data["location"]["unreliable_reason"] == "Location could not be reliably determined from the available evidence."
+    assert data["phase"] == "AI Location Analysis"
+
+
+def test_location_result_with_gps_telemetry(client):
+    """
+    Acceptance test: When an image contains valid EXIF GPS, location is determined
+    with verified confidence, coordinates, and real-world metadata.
+    """
+    img = Image.new("RGB", (300, 200), color=(120, 160, 220))
+    exif = img.getexif()
+    gps = exif.get_ifd(0x8825)
+    gps[1] = "N"
+    gps[2] = 25.1782
+    gps[3] = "E"
+    gps[4] = 75.8272
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif)
+    buf.seek(0)
+
+    response = client.post(
+        "/api/v1/analyze",
+        files={"file": ("gps_test.jpg", buf, "image/jpeg")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    loc = data["location"]
+    assert loc["is_determined"] is True
+    assert loc["place_name"] is not None
+    assert loc["latitude"] is not None
+    assert loc["longitude"] is not None
+    assert loc["confidence_level"] == "Verified Match"
+    assert len(loc["metadata_clues"]) > 0
+    assert len(loc["sources_consulted"]) > 0

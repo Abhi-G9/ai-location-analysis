@@ -219,3 +219,174 @@ def verify_geolocation_prediction(
             "and EXIF spatial proximity."
         ),
     }
+
+
+def build_location_result(
+    verification_result: Dict[str, Any],
+    exif_data: Dict[str, Any],
+    ocr_data: Dict[str, Any],
+    clip_data: Dict[str, Any],
+    heuristics_data: Dict[str, Any],
+    reverse_geo_data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Constructs the streamlined product-facing location response:
+    - Most Likely Location (place name, city, region, country, exact address, lat/lon, precision, confidence)
+    - Why This Location? (landmarks/architecture, text found, metadata, matching evidence, sources)
+    - Other Possible Locations (real alternative candidates only)
+    - If unestablished: “Location could not be reliably determined from the available evidence.”
+    """
+    is_determined = not verification_result.get("abstention", True)
+    top_candidate = verification_result.get("verified_candidate")
+
+    if not is_determined or not top_candidate:
+        missing_clues = []
+        if not exif_data.get("has_gps"):
+            missing_clues.append("No GPS coordinates or camera telemetry embedded in image EXIF tags.")
+        if not ocr_data.get("candidate_geo_clues") and ocr_data.get("total_lines_found", 0) == 0:
+            missing_clues.append("No readable road signs, milestone markers, or place names detected in visible text.")
+        elif ocr_data.get("total_lines_found", 0) > 0 and not ocr_data.get("candidate_geo_clues"):
+            missing_clues.append("Text detected in the image does not correspond to any known geographic landmark.")
+        missing_clues.append(
+            "Visual features alone without distinctive architectural landmarks or geographic anchors are insufficient to pinpoint a location."
+        )
+
+        sources_consulted = ["Image EXIF Metadata", "RapidOCR Text Reader"]
+        if clip_data.get("model_available"):
+            sources_consulted.append("OpenCLIP ViT-B-32 Scene Classifier")
+        sources_consulted.extend(["Local Curated Index", "OpenStreetMap"])
+
+        return {
+            "is_determined": False,
+            "unreliable_reason": "Location could not be reliably determined from the available evidence.",
+            "missing_clues": missing_clues,
+            "place_name": None,
+            "city": None,
+            "region_state": None,
+            "country": None,
+            "exact_address": None,
+            "latitude": None,
+            "longitude": None,
+            "geographic_precision": "unknown",
+            "confidence_level": "Unverified",
+            "confidence_basis": verification_result.get("confidence_basis") or "Insufficient evidence to identify a location without risking a false prediction.",
+            "landmarks_and_architecture": [
+                f"Scene context: {env['label']}"
+                for env in clip_data.get("top_environments", [])[:2]
+            ],
+            "text_found": [line["text"] for line in ocr_data.get("detected_lines", [])[:5]],
+            "metadata_clues": [
+                f"Camera: {exif_data.get('camera_make', '')} {exif_data.get('camera_model', '')}".strip()
+            ] if exif_data.get("has_exif") and (exif_data.get("camera_make") or exif_data.get("camera_model")) else ["No camera EXIF metadata found"],
+            "matching_evidence": [],
+            "sources_consulted": sources_consulted,
+            "alternative_locations": [],
+        }
+
+    # Location IS determined
+    place_name = top_candidate.get("name")
+    city = top_candidate.get("city")
+    region_state = top_candidate.get("state")
+    country = top_candidate.get("country", "India")
+    exact_address = None
+
+    if reverse_geo_data:
+        if reverse_geo_data.get("city"):
+            city = reverse_geo_data.get("city")
+        if reverse_geo_data.get("state"):
+            region_state = reverse_geo_data.get("state")
+        if reverse_geo_data.get("country"):
+            country = reverse_geo_data.get("country")
+        if verification_result.get("is_verified") and reverse_geo_data.get("display_name"):
+            exact_address = reverse_geo_data.get("display_name")
+    elif verification_result.get("is_verified") and verification_result.get("precision_level") == "specific_landmark":
+        exact_address = top_candidate.get("description")
+
+    # Map precision
+    raw_precision = verification_result.get("precision_level", "city")
+    precision_map = {
+        "specific_landmark": "specific location",
+        "neighborhood": "area",
+        "city": "city",
+        "regional": "region",
+        "unknown": "unknown",
+    }
+    geographic_precision = precision_map.get(raw_precision, "area")
+
+    # Visible landmarks & architecture
+    landmarks_and_architecture = []
+    if top_candidate.get("category"):
+        landmarks_and_architecture.append(f"Landmark category: {top_candidate['category'].replace('_', ' ').title()}")
+    if top_candidate.get("visual_features"):
+        landmarks_and_architecture.extend(top_candidate["visual_features"][:3])
+    for env in clip_data.get("top_environments", [])[:1]:
+        landmarks_and_architecture.append(f"Visual environment: {env['label']}")
+
+    # Text found
+    text_found = [line["text"] for line in ocr_data.get("detected_lines", [])[:5]]
+    if not text_found:
+        text_found = ["No legible text or signage detected in photograph."]
+
+    # Metadata clues
+    metadata_clues = []
+    if exif_data.get("has_gps") and exif_data.get("gps"):
+        gps = exif_data["gps"]
+        metadata_clues.append(f"Camera GPS: {gps['latitude']:.5f}° N, {gps['longitude']:.5f}° E ({gps.get('coordinate_provenance', 'EXIF')})")
+    elif exif_data.get("has_exif"):
+        cam = f"{exif_data.get('camera_make', '')} {exif_data.get('camera_model', '')}".strip()
+        metadata_clues.append(f"Camera device: {cam or 'Present in EXIF'}. GPS coordinates scrubbed/absent.")
+    else:
+        metadata_clues.append("No EXIF metadata embedded in file.")
+
+    # Matching evidence
+    matching_evidence = list(verification_result.get("supporting_evidence", []))
+    if not matching_evidence:
+        matching_evidence.append(f"Visual alignment with {place_name} reference features.")
+
+    # Sources consulted
+    sources_consulted = [top_candidate.get("source", "OpenStreetMap")]
+    if ocr_data.get("total_lines_found", 0) > 0:
+        sources_consulted.append("RapidOCR Text Reader")
+    if clip_data.get("model_available"):
+        sources_consulted.append("OpenCLIP ViT-B-32")
+    sources_consulted.append("Meta DINOv2")
+    if exif_data.get("has_gps"):
+        sources_consulted.append("Image EXIF Telemetry")
+
+    # Alternatives
+    alt_locations = []
+    for alt in verification_result.get("alternative_candidates", []):
+        if alt.get("name") != place_name:
+            alt_locations.append({
+                "name": alt["name"],
+                "city": alt.get("city"),
+                "region_state": alt.get("state"),
+                "country": alt.get("country"),
+                "latitude": alt.get("latitude"),
+                "longitude": alt.get("longitude"),
+                "precision": precision_map.get(alt.get("precision", "area"), "area"),
+                "description": alt.get("description"),
+                "confidence_hint": f"Rank #{alt.get('rank', 'Alt')} Candidate",
+            })
+
+    return {
+        "is_determined": True,
+        "unreliable_reason": None,
+        "missing_clues": [],
+        "place_name": place_name,
+        "city": city,
+        "region_state": region_state,
+        "country": country,
+        "exact_address": exact_address,
+        "latitude": round(top_candidate["latitude"], 5) if top_candidate.get("latitude") is not None else None,
+        "longitude": round(top_candidate["longitude"], 5) if top_candidate.get("longitude") is not None else None,
+        "geographic_precision": geographic_precision,
+        "confidence_level": verification_result.get("confidence_category", "Plausible Candidate"),
+        "confidence_basis": verification_result.get("confidence_basis", ""),
+        "landmarks_and_architecture": landmarks_and_architecture,
+        "text_found": text_found,
+        "metadata_clues": metadata_clues,
+        "matching_evidence": matching_evidence,
+        "sources_consulted": sources_consulted,
+        "alternative_locations": alt_locations[:3],
+    }

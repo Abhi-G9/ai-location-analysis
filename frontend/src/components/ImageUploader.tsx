@@ -1,46 +1,48 @@
 import React, { useRef, useState } from 'react';
-import { UploadCloud, AlertTriangle, X, CheckCircle, FileCheck } from 'lucide-react';
+import { UploadCloud, X, AlertCircle } from 'lucide-react';
 import { uploadAndAnalyzeImage } from '../services/api';
-import { AnalyzeResponse, UploadState } from '../types';
+import { AnalyzeResponse } from '../types';
 
 interface ImageUploaderProps {
   onSuccess: (result: AnalyzeResponse) => void;
   onReset: () => void;
+  onAnalyzingStateChange?: (isAnalyzing: boolean) => void;
 }
 
 const MAX_SIZE_MB = 10;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({ onSuccess, onReset }) => {
+export const ImageUploader: React.FC<ImageUploaderProps> = ({
+  onSuccess,
+  onReset,
+  onAnalyzingStateChange,
+}) => {
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [uploadState, setUploadState] = useState<UploadState>('idle');
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const validateClientFile = (file: File): string | null => {
+  const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return `Unsupported file format (${file.type || 'unknown'}). Please choose a JPEG, PNG, or WebP image.`;
+      return `Unsupported format (${file.type || 'unknown'}). Please select a JPEG, PNG, or WebP photograph.`;
     }
     const sizeMb = file.size / (1024 * 1024);
     if (sizeMb > MAX_SIZE_MB) {
-      return `File size (${sizeMb.toFixed(2)} MB) exceeds the maximum allowed limit of ${MAX_SIZE_MB} MB.`;
+      return `File size (${sizeMb.toFixed(1)} MB) exceeds the ${MAX_SIZE_MB} MB limit.`;
     }
     return null;
   };
 
   const handleFile = (file: File) => {
     setErrorMessage(null);
-    const clientError = validateClientFile(file);
-    if (clientError) {
-      setErrorMessage(clientError);
-      setUploadState('error');
+    const err = validateFile(file);
+    if (err) {
+      setErrorMessage(err);
       return;
     }
-
     setSelectedFile(file);
-    setUploadState('selected');
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
   };
@@ -76,8 +78,9 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onSuccess, onReset
     }
     setSelectedFile(null);
     setPreviewUrl(null);
-    setUploadState('idle');
+    setIsAnalyzing(false);
     setErrorMessage(null);
+    if (onAnalyzingStateChange) onAnalyzingStateChange(false);
     if (inputRef.current) {
       inputRef.current.value = '';
     }
@@ -87,39 +90,29 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onSuccess, onReset
   const handleAnalyze = async () => {
     if (!selectedFile) return;
 
-    setUploadState('uploading');
+    setIsAnalyzing(true);
     setErrorMessage(null);
+    if (onAnalyzingStateChange) onAnalyzingStateChange(true);
 
     try {
       const response = await uploadAndAnalyzeImage(selectedFile);
-      setUploadState('success');
+      setIsAnalyzing(false);
+      if (onAnalyzingStateChange) onAnalyzingStateChange(false);
       onSuccess(response);
     } catch (err: any) {
-      setUploadState('error');
-      setErrorMessage(err.message || 'An unexpected error occurred during image intake.');
+      setIsAnalyzing(false);
+      if (onAnalyzingStateChange) onAnalyzingStateChange(false);
+      setErrorMessage(err.message || 'An unexpected error occurred while analyzing the image.');
     }
   };
 
   return (
-    <div className="w-full bg-slate-800/60 border border-slate-700/80 rounded-2xl p-6 sm:p-8 backdrop-blur-sm shadow-xl">
-      <div className="mb-6">
-        <h3 className="text-xl font-bold text-white mb-2">Upload Photograph for Analysis</h3>
-        <p className="text-sm text-slate-400">
-          Upload a real-world photograph (landmark, street, building, public square, or landscape).
-        </p>
-      </div>
-
+    <div className="w-full bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-sm space-y-6">
       {errorMessage && (
-        <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-start space-x-3 text-sm">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 text-rose-400 mt-0.5" />
-          <div className="flex-1">
-            <span className="font-semibold block">Intake Validation Issue:</span>
-            <span className="text-xs text-rose-200">{errorMessage}</span>
-          </div>
-          <button
-            onClick={() => setErrorMessage(null)}
-            className="text-rose-400 hover:text-rose-200"
-          >
+        <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start space-x-2.5">
+          <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+          <span className="flex-1">{errorMessage}</span>
+          <button onClick={() => setErrorMessage(null)} className="text-rose-600 hover:text-rose-800">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -132,10 +125,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onSuccess, onReset
           onDragOver={handleDrag}
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition flex flex-col items-center justify-center ${
+          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition flex flex-col items-center justify-center space-y-3 ${
             dragActive
-              ? 'border-sky-400 bg-sky-500/10 scale-[1.01]'
-              : 'border-slate-600 hover:border-slate-500 hover:bg-slate-800/40'
+              ? 'border-blue-500 bg-blue-50/50'
+              : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50/60'
           }`}
         >
           <input
@@ -145,99 +138,65 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onSuccess, onReset
             className="hidden"
             onChange={handleInputChange}
           />
-          <div className="p-4 bg-slate-700/50 rounded-full text-sky-400 mb-4 ring-8 ring-slate-800">
-            <UploadCloud className="w-8 h-8" />
+          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+            <UploadCloud className="w-6 h-6 text-slate-500" />
           </div>
-          <p className="text-base font-semibold text-slate-200 mb-1">
-            Click to choose a photograph or drag and drop
-          </p>
-          <p className="text-xs text-slate-400 mb-3">
-            Supports JPEG, PNG, and WebP (Max file size: 10 MB)
-          </p>
-          <span className="px-3 py-1 rounded-full bg-slate-700/80 text-slate-300 text-xs font-medium">
-            Safe intake: decoded safely in memory
-          </span>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              Click to select a photo, or drag and drop here
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              JPEG, PNG, or WebP (up to 10 MB)
+            </p>
+          </div>
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            {/* Image Preview Box */}
-            <div className="relative rounded-xl overflow-hidden bg-slate-950 border border-slate-700 aspect-video flex items-center justify-center">
-              {previewUrl && (
-                <img
-                  src={previewUrl}
-                  alt="Photograph preview"
-                  className="object-contain max-h-full max-w-full"
-                />
-              )}
+          {/* Centered Preview Area */}
+          <div className="relative max-w-lg mx-auto rounded-xl overflow-hidden bg-slate-100 border border-slate-200 aspect-video flex items-center justify-center">
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt="Selected preview"
+                className="object-contain max-h-full max-w-full"
+              />
+            )}
+            {!isAnalyzing && (
               <button
                 onClick={handleReset}
-                className="absolute top-3 right-3 p-1.5 bg-slate-900/80 hover:bg-slate-900 text-slate-300 hover:text-white rounded-full backdrop-blur border border-slate-700 transition"
-                title="Remove image"
+                className="absolute top-2.5 right-2.5 p-1.5 bg-white/90 hover:bg-white text-slate-700 rounded-full shadow-sm border border-slate-200 transition"
+                title="Choose different image"
               >
                 <X className="w-4 h-4" />
               </button>
-            </div>
-
-            {/* Selected File Details */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
-              <div className="flex items-center space-x-2 text-sky-400 font-semibold text-sm">
-                <FileCheck className="w-5 h-5" />
-                <span>File Selected for Intake</span>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Filename:</span>
-                  <span className="text-slate-200 font-mono truncate max-w-[200px]" title={selectedFile.name}>
-                    {selectedFile.name}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Declared Type:</span>
-                  <span className="text-slate-200 font-mono">{selectedFile.type || 'unknown'}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">File Size:</span>
-                  <span className="text-slate-200 font-mono">
-                    {(selectedFile.size / 1024).toFixed(1)} KB ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handleAnalyze}
-                  disabled={uploadState === 'uploading'}
-                  className={`flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm transition flex items-center justify-center space-x-2 shadow-lg ${
-                    uploadState === 'uploading'
-                      ? 'bg-sky-700 text-sky-200 cursor-not-allowed'
-                      : 'bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold hover:shadow-sky-500/20'
-                  }`}
-                >
-                  {uploadState === 'uploading' ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Verifying & Intake...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Intake & Validate Image</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleReset}
-                  disabled={uploadState === 'uploading'}
-                  className="py-2.5 px-4 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-700/60 text-sm font-medium transition"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
+            )}
           </div>
+
+          {/* Simple Loading State */}
+          {isAnalyzing ? (
+            <div className="text-center py-6 space-y-3">
+              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm font-medium text-slate-700">
+                Analyzing visual clues and searching for matching locations…
+              </p>
+            </div>
+          ) : (
+            /* Clear Analyze Image Button */
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-xs mx-auto">
+              <button
+                onClick={handleAnalyze}
+                className="w-full py-2.5 px-6 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm transition shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+              >
+                Analyze Image
+              </button>
+              <button
+                onClick={handleReset}
+                className="w-full sm:w-auto py-2.5 px-4 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-sm transition"
+              >
+                Change Photo
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

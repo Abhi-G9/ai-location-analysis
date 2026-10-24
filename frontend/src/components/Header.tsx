@@ -1,47 +1,15 @@
 import React from 'react';
-import { Compass, ShieldCheck, Award } from 'lucide-react';
 
-interface HeaderProps {
-  onOpenEvaluation?: () => void;
-}
-
-export const Header: React.FC<HeaderProps> = ({ onOpenEvaluation }) => {
+export const Header: React.FC = () => {
   return (
-    <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20">
-            <Compass className="w-6 h-6 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-lg text-white tracking-tight">GeoLens AI</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Phase 6 Release Ready
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 hidden sm:block">
-              Evidence-based AI image geolocation & verification
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3 text-xs text-slate-400">
-          {onOpenEvaluation && (
-            <button
-              onClick={onOpenEvaluation}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition font-semibold"
-            >
-              <Award className="w-4 h-4 text-emerald-400" />
-              <span>Evaluation & Model Cards</span>
-            </button>
-          )}
-
-          <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Strict Privacy: RAM Only</span>
-          </div>
-        </div>
+    <header className="border-b border-slate-200 bg-white">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center space-y-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+          AI Location Analysis
+        </h1>
+        <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto">
+          Upload a photo to investigate where it may have been taken.
+        </p>
       </div>
     </header>
   );

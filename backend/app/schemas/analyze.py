@@ -138,10 +138,49 @@ class VerificationResult(BaseModel):
     verification_methodology: str
 
 
+class LocationCandidateSummary(BaseModel):
+    name: str
+    city: Optional[str] = None
+    region_state: Optional[str] = None
+    country: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    precision: str = "area"
+    description: Optional[str] = None
+    confidence_hint: Optional[str] = None
+
+
+class LocationResult(BaseModel):
+    is_determined: bool = Field(..., description="True if a location could be established from evidence")
+    unreliable_reason: Optional[str] = None
+    missing_clues: List[str] = []
+
+    # Most Likely Location
+    place_name: Optional[str] = None
+    city: Optional[str] = None
+    region_state: Optional[str] = None
+    country: Optional[str] = None
+    exact_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    geographic_precision: str = "unknown"
+    confidence_level: str = "Unverified"
+    confidence_basis: str = ""
+
+    # Why This Location?
+    landmarks_and_architecture: List[str] = []
+    text_found: List[str] = []
+    metadata_clues: List[str] = []
+    matching_evidence: List[str] = []
+    sources_consulted: List[str] = []
+
+    # Other Possible Locations
+    alternative_locations: List[LocationCandidateSummary] = []
+
+
 class AnalyzeResponse(BaseModel):
     """
     Structured image-analysis results returned by POST /api/v1/analyze.
-    Phase 5 incorporates interactive mapping, evidence verification, and honest confidence calibration.
     """
     status: str = Field(..., description="Status of the image intake, e.g. 'valid'")
     filename: str = Field(..., description="Sanitized original filename")
@@ -149,12 +188,13 @@ class AnalyzeResponse(BaseModel):
     format: str = Field(..., description="Image format (JPEG, PNG, WEBP)")
     size_bytes: int = Field(..., description="File size in bytes")
     dimensions: ImageDimensions = Field(..., description="Image width and height in pixels")
-    phase: str = Field(default="Phase 5: Verification, Mapping & Confidence")
+    phase: str = Field(default="AI Location Analysis")
     exif: EXIFMetadata
     ocr: OCRResult
     heuristics: VisualHeuristics
     clip: CLIPAnalysis
     retrieval: CandidateRetrievalResult
     verification: VerificationResult
+    location: Optional[LocationResult] = None
     summary_clues: List[str] = Field(default=[], description="Bullet points of identified visual clues")
     message: str = Field(..., description="Human-readable summary of analysis results")

@@ -139,6 +139,40 @@ export interface VerificationResult {
   verification_methodology: string;
 }
 
+export interface LocationCandidateSummary {
+  name: string;
+  city?: string | null;
+  region_state?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  precision: string;
+  description?: string | null;
+  confidence_hint?: string | null;
+}
+
+export interface LocationResult {
+  is_determined: boolean;
+  unreliable_reason?: string | null;
+  missing_clues: string[];
+  place_name?: string | null;
+  city?: string | null;
+  region_state?: string | null;
+  country?: string | null;
+  exact_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geographic_precision: string;
+  confidence_level: string;
+  confidence_basis: string;
+  landmarks_and_architecture: string[];
+  text_found: string[];
+  metadata_clues: string[];
+  matching_evidence: string[];
+  sources_consulted: string[];
+  alternative_locations: LocationCandidateSummary[];
+}
+
 export interface AnalyzeResponse {
   status: string;
   filename: string;
@@ -153,6 +187,7 @@ export interface AnalyzeResponse {
   clip: CLIPAnalysis;
   retrieval: CandidateRetrievalResult;
   verification: VerificationResult;
+  location?: LocationResult | null;
   summary_clues: string[];
   message: string;
 }

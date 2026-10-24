@@ -59,6 +59,11 @@ class GeoDataProvider(ABC):
         """Reverse geocode decimal coordinates into a structured address."""
         pass
 
+    @abstractmethod
+    async def search_places_by_text(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
+        """Search geographic places using text/signage query."""
+        pass
+
 
 class LocalCuratedDatasetProvider(GeoDataProvider):
     """
@@ -168,6 +173,10 @@ class LocalCuratedDatasetProvider(GeoDataProvider):
             }
         return None
 
+    async def search_places_by_text(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
+        """Search local candidate places using keyword matching."""
+        return self.get_candidates_by_keywords([query])[:limit]
+
 
 class NominatimGeoProvider(GeoDataProvider):
     """
@@ -236,6 +245,65 @@ class NominatimGeoProvider(GeoDataProvider):
 
         # Fallback to local index
         return await self.fallback.reverse_geocode(latitude, longitude)
+
+    async def search_places_by_text(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
+        # Enforce 1 second rate limit between requests to respect OSM policy
+        now = time.time()
+        elapsed = now - self.last_request_time
+        if elapsed < 1.0:
+            time.sleep(1.0 - elapsed)
+        self.last_request_time = time.time()
+
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(
+                    f"{self.base_url}/search",
+                    params={
+                        "q": query,
+                        "format": "jsonv2",
+                        "addressdetails": 1,
+                        "limit": limit,
+                    },
+                    headers={"User-Agent": self.user_agent},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = []
+                    for item in data:
+                        addr = item.get("address", {})
+                        city = (
+                            addr.get("city")
+                            or addr.get("town")
+                            or addr.get("county")
+                            or addr.get("state_district")
+                            or ""
+                        )
+                        state = addr.get("state", "")
+                        country = addr.get("country", "")
+                        name = item.get("name") or item.get("display_name", "").split(",")[0]
+                        candidates.append({
+                            "id": f"osm-{item.get('osm_id', item.get('place_id'))}",
+                            "name": name,
+                            "category": item.get("type", "geographic_location"),
+                            "latitude": float(item["lat"]),
+                            "longitude": float(item["lon"]),
+                            "precision": "specific_landmark" if item.get("type") in ["attraction", "tourism", "monument", "historic", "building"] else "city",
+                            "city": city,
+                            "district": addr.get("state_district") or city,
+                            "state": state,
+                            "country": country,
+                            "description": item.get("display_name", ""),
+                            "source": "OpenStreetMap Nominatim",
+                            "license": "ODbL",
+                            "matched_clues": [f"OCR Search: {query}"],
+                            "retrieval_reasons": [f"Recognized place/signage text matching '{query}' via OpenStreetMap"],
+                        })
+                    if candidates:
+                        return candidates
+        except Exception as exc:
+            logger.warning("Nominatim search failed for '%s': %s", query, exc)
+
+        return await self.fallback.search_places_by_text(query, limit)
 
 
 _default_provider: Optional[GeoDataProvider] = None
