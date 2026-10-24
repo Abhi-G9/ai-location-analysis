@@ -12,6 +12,7 @@ from backend.app.services.exif_service import extract_exif_metadata
 from backend.app.services.ocr_service import extract_text_clues
 from backend.app.services.ranking_service import rank_candidates
 from backend.app.services.retrieval_service import retrieve_candidate_locations
+from backend.app.services.verification_service import verify_geolocation_prediction
 from backend.app.services.visual_clues_service import analyze_image_heuristics
 
 logger = logging.getLogger("geolens.analyze")
@@ -114,7 +115,21 @@ async def analyze_image(
         retrieval_result["candidates"] = ranked_list
         retrieval_result["top_candidate"] = ranked_list[0] if ranked_list else None
 
-    # 8. Build evidence summary clues
+    # 8. Evidence Cross-Verification & Confidence Calibration (Phase 5)
+    verification_result = verify_geolocation_prediction(
+        ranked_candidates=retrieval_result["candidates"],
+        exif_data=exif_result,
+        ocr_data=ocr_result,
+        clip_data=clip_result,
+        heuristics_data=heuristics_result,
+        abstention_triggered=retrieval_result.get("abstention", False),
+    )
+
+    # If verification forces abstention, sync with retrieval result
+    if verification_result["abstention"]:
+        retrieval_result["abstention"] = True
+
+    # 9. Build evidence summary clues
     summary_clues: List[str] = []
 
     if exif_result.get("has_gps") and exif_result.get("gps"):
@@ -146,22 +161,22 @@ async def analyze_image(
         f"Visual properties: {heuristics_result['framing']} format, {heuristics_result['lighting_condition']}, {heuristics_result['focus_quality']}."
     )
 
-    if retrieval_result.get("top_candidate"):
-        top_c = retrieval_result["top_candidate"]
+    if verification_result["abstention"]:
+        summary_clues.append(f"Verification Decision: ABSTAIN ({verification_result['confidence_basis']})")
+    elif verification_result.get("verified_candidate"):
+        top_c = verification_result["verified_candidate"]
+        err_km = verification_result.get("estimated_error_km")
+        err_str = f"±{err_km} km" if err_km is not None else "Unknown"
         summary_clues.append(
-            f"AI Multi-Modal Ranking #1: {top_c['name']} (DINOv2: {top_c['dinov2_structural_similarity']:.2f}, "
-            f"CLIP: {top_c['clip_visual_similarity']:.2f}, Score: {top_c['composite_rank_score']:.2f})"
+            f"Verification: {verification_result['confidence_category']} -> {top_c['name']} "
+            f"(Precision: {verification_result['precision_level']}, "
+            f"Estimated Error: {err_str})"
         )
-    elif retrieval_result["candidates"]:
-        names = [c["name"] for c in retrieval_result["candidates"][:3]]
-        summary_clues.append(f"Geographic Candidate Retrieval: {len(retrieval_result['candidates'])} place(s) retrieved ({', '.join(names)}).")
-    else:
-        summary_clues.append("Geographic Candidate Retrieval: No matching places in Kota database; abstaining.")
 
     message = (
-        f"Analyzed '{sanitized_name}': Ranked {len(retrieval_result['candidates'])} candidate place(s) "
-        "using DINOv2 structural embeddings, CLIP visual similarity, and OpenCV geometric feature matching. "
-        "Spatial verification and mapping will be executed in Phase 5."
+        f"Analyzed '{sanitized_name}': Confidence category '{verification_result['confidence_category']}' "
+        f"with precision level '{verification_result['precision_level']}'. "
+        f"{verification_result['confidence_basis']}"
     )
 
     return AnalyzeResponse(
@@ -171,12 +186,13 @@ async def analyze_image(
         format=format_name,
         size_bytes=len(raw_bytes),
         dimensions=ImageDimensions(width=width, height=height),
-        phase="Phase 4: AI Visual Matching & Ranking",
+        phase="Phase 5: Verification, Mapping & Confidence",
         exif=exif_result,
         ocr=ocr_result,
         heuristics=heuristics_result,
         clip=clip_result,
         retrieval=retrieval_result,
+        verification=verification_result,
         summary_clues=summary_clues,
         message=message,
     )

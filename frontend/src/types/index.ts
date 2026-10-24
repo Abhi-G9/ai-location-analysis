@@ -123,6 +123,22 @@ export interface CandidateRetrievalResult {
   message: string;
 }
 
+export interface VerificationResult {
+  is_verified: boolean;
+  confidence_category: 'Verified Match' | 'Plausible Candidate' | 'Low Confidence' | 'Insufficient Evidence';
+  confidence_basis: string;
+  precision_level: 'specific_landmark' | 'neighborhood' | 'city' | 'regional' | 'unknown';
+  estimated_error_km?: number | null;
+  error_distance_description: string;
+  abstention: boolean;
+  abstention_reason?: string | null;
+  verified_candidate?: CandidatePlace | null;
+  alternative_candidates: CandidatePlace[];
+  supporting_evidence: string[];
+  confounding_factors: string[];
+  verification_methodology: string;
+}
+
 export interface AnalyzeResponse {
   status: string;
   filename: string;
@@ -136,6 +152,7 @@ export interface AnalyzeResponse {
   heuristics: VisualHeuristics;
   clip: CLIPAnalysis;
   retrieval: CandidateRetrievalResult;
+  verification: VerificationResult;
   summary_clues: string[];
   message: string;
 }

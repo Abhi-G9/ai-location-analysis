@@ -122,10 +122,26 @@ class CandidateRetrievalResult(BaseModel):
     message: str
 
 
+class VerificationResult(BaseModel):
+    is_verified: bool = Field(..., description="True if evidence fulfills rigorous verification criteria")
+    confidence_category: str = Field(..., description="'Verified Match', 'Plausible Candidate', 'Low Confidence', or 'Insufficient Evidence'")
+    confidence_basis: str = Field(..., description="Explicit measurable rationale behind the category")
+    precision_level: str = Field(..., description="'specific_landmark', 'neighborhood', 'city', 'regional', or 'unknown'")
+    estimated_error_km: Optional[float] = Field(None, description="Estimated geographic error radius in kilometers")
+    error_distance_description: str = Field(..., description="Uncertainty explanation for the estimated error bounds")
+    abstention: bool = Field(False, description="True if system explicitly refuses to pinpoint a location")
+    abstention_reason: Optional[str] = Field(None, description="Detailed explanation when abstaining")
+    verified_candidate: Optional[CandidatePlace] = None
+    alternative_candidates: List[CandidatePlace] = []
+    supporting_evidence: List[str] = []
+    confounding_factors: List[str] = []
+    verification_methodology: str
+
+
 class AnalyzeResponse(BaseModel):
     """
     Structured image-analysis results returned by POST /api/v1/analyze.
-    Phase 4 incorporates multi-modal AI visual matching and transparent candidate ranking.
+    Phase 5 incorporates interactive mapping, evidence verification, and honest confidence calibration.
     """
     status: str = Field(..., description="Status of the image intake, e.g. 'valid'")
     filename: str = Field(..., description="Sanitized original filename")
@@ -133,11 +149,12 @@ class AnalyzeResponse(BaseModel):
     format: str = Field(..., description="Image format (JPEG, PNG, WEBP)")
     size_bytes: int = Field(..., description="File size in bytes")
     dimensions: ImageDimensions = Field(..., description="Image width and height in pixels")
-    phase: str = Field(default="Phase 4: AI Visual Matching & Ranking")
+    phase: str = Field(default="Phase 5: Verification, Mapping & Confidence")
     exif: EXIFMetadata
     ocr: OCRResult
     heuristics: VisualHeuristics
     clip: CLIPAnalysis
     retrieval: CandidateRetrievalResult
+    verification: VerificationResult
     summary_clues: List[str] = Field(default=[], description="Bullet points of identified visual clues")
     message: str = Field(..., description="Human-readable summary of analysis results")

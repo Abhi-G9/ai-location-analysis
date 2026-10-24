@@ -15,8 +15,11 @@ import {
   ShieldCheck,
   Award,
   Cpu,
+  AlertTriangle,
+  Navigation,
 } from 'lucide-react';
 import { AnalyzeResponse } from '../types';
+import { MapViewer } from './MapViewer';
 
 interface AnalysisResultsProps {
   result: AnalyzeResponse;
@@ -26,8 +29,41 @@ interface AnalysisResultsProps {
 export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onReset }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'ranking' | 'exif' | 'ocr' | 'clip' | 'heuristics'>('overview');
 
-  const { exif, ocr, clip, heuristics, retrieval } = result;
+  const { exif, ocr, clip, heuristics, retrieval, verification } = result;
   const topCandidate = retrieval.top_candidate || (retrieval.candidates.length > 0 ? retrieval.candidates[0] : null);
+
+  // Confidence Category styling helper
+  const getConfidenceBadge = (cat: string) => {
+    switch (cat) {
+      case 'Verified Match':
+        return {
+          bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+          dot: 'bg-emerald-400',
+          icon: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
+        };
+      case 'Plausible Candidate':
+        return {
+          bg: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+          dot: 'bg-blue-400',
+          icon: <Compass className="w-4 h-4 text-blue-400" />,
+        };
+      case 'Low Confidence':
+        return {
+          bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+          dot: 'bg-amber-400',
+          icon: <AlertTriangle className="w-4 h-4 text-amber-400" />,
+        };
+      case 'Insufficient Evidence':
+      default:
+        return {
+          bg: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+          dot: 'bg-rose-400',
+          icon: <AlertCircle className="w-4 h-4 text-rose-400" />,
+        };
+    }
+  };
+
+  const confBadge = getConfidenceBadge(verification.confidence_category);
 
   return (
     <div className="w-full bg-slate-800/60 border border-slate-700/80 rounded-2xl p-6 sm:p-8 backdrop-blur-sm shadow-xl mt-6 animate-fadeIn">
@@ -39,9 +75,9 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="text-xl font-bold text-white">AI Visual Matching & Candidate Ranking</h3>
+              <h3 className="text-xl font-bold text-white">Investigation & Spatial Verification</h3>
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                Phase 4 Complete
+                Phase 5 Active
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -60,121 +96,159 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </button>
       </div>
 
-      {/* Top #1 Match Card (When candidates are found) */}
-      {topCandidate && !retrieval.abstention && (
-        <div className="my-6 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border border-emerald-500/50 rounded-2xl p-6 shadow-lg">
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-            <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                <Award className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                Top Candidate Prediction (#1 Ranked)
-              </span>
+      {/* PHASE 5: VERIFICATION & CONFIDENCE HERO BANNER */}
+      <div className="my-6 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-700 rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center justify-between flex-wrap gap-3 pb-4 border-b border-slate-800">
+          <div className="flex items-center space-x-3 flex-wrap gap-2">
+            {/* Confidence Category Badge */}
+            <div
+              className={`flex items-center space-x-2 px-3 py-1 rounded-xl border text-xs font-bold ${confBadge.bg}`}
+            >
+              {confBadge.icon}
+              <span>{verification.confidence_category}</span>
             </div>
+
+            {/* Precision Level Badge */}
+            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-mono">
+              <TargetIcon className="w-3.5 h-3.5 text-sky-400" />
+              <span>Precision: {verification.precision_level.replace('_', ' ')}</span>
+            </div>
+
+            {/* Estimated Error Margin */}
+            {verification.estimated_error_km !== null && verification.estimated_error_km !== undefined ? (
+              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 text-emerald-300 text-xs font-mono">
+                <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Error Radius: &plusmn;{verification.estimated_error_km} km</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 text-xs font-mono">
+                <span>Error Radius: Withheld (Insufficient Data)</span>
+              </div>
+            )}
+          </div>
+
+          {topCandidate && !verification.abstention && (
             <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-400">Composite Match Score:</span>
+              <span className="text-xs text-slate-400">Composite Score:</span>
               <span className="text-sm font-mono font-bold px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 {topCandidate.composite_rank_score !== undefined && topCandidate.composite_rank_score !== null
                   ? `${(topCandidate.composite_rank_score * 100).toFixed(1)}%`
                   : 'N/A'}
               </span>
             </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <div>
-              <h4 className="text-xl font-bold text-white mb-1">{topCandidate.name}</h4>
-              <p className="text-xs text-slate-300 max-w-2xl">{topCandidate.description}</p>
-            </div>
-            <div className="text-left md:text-right flex-shrink-0">
-              <span className="text-xs font-mono text-slate-300 block">
-                {topCandidate.latitude.toFixed(4)}&deg; N, {topCandidate.longitude.toFixed(4)}&deg; E
-              </span>
-              <span className="text-[11px] text-slate-400 block">{topCandidate.city}, {topCandidate.state}</span>
-              {topCandidate.distance_km !== null && topCandidate.distance_km !== undefined && (
-                <span className="text-[11px] font-mono text-emerald-400 block mt-0.5">
-                  &bull; {topCandidate.distance_km} km from EXIF coordinates
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* AI Feature Meters */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800 text-xs">
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-slate-400 text-[11px]">DINOv2 Structural Sim:</span>
-                <span className="font-mono font-bold text-sky-300">
-                  {topCandidate.dinov2_structural_similarity !== undefined && topCandidate.dinov2_structural_similarity !== null
-                    ? topCandidate.dinov2_structural_similarity.toFixed(3)
-                    : 'N/A'}
-                </span>
-              </div>
-              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                <div
-                  className="bg-sky-400 h-1.5 rounded-full"
-                  style={{
-                    width: `${Math.max(
-                      5,
-                      Math.min(100, ((topCandidate.dinov2_structural_similarity || 0) + 0.1) * 110)
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-slate-400 text-[11px]">CLIP Visual-Semantic Sim:</span>
-                <span className="font-mono font-bold text-purple-300">
-                  {topCandidate.clip_visual_similarity !== undefined && topCandidate.clip_visual_similarity !== null
-                    ? topCandidate.clip_visual_similarity.toFixed(3)
-                    : 'N/A'}
-                </span>
-              </div>
-              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                <div
-                  className="bg-purple-400 h-1.5 rounded-full"
-                  style={{
-                    width: `${Math.max(
-                      5,
-                      Math.min(100, ((topCandidate.clip_visual_similarity || 0) + 0.1) * 110)
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-slate-400 text-[11px]">OpenCV Keypoint Inliers:</span>
-                <span className="font-mono font-bold text-emerald-300">
-                  {topCandidate.opencv_feature_inliers ?? 0} inliers
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-500 block truncate">
-                {topCandidate.structural_agreement || 'Evaluated'}
-              </span>
-            </div>
-          </div>
-
-          {/* Evidence Breakdown */}
-          {topCandidate.evidence_breakdown && topCandidate.evidence_breakdown.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-slate-800/80">
-              <span className="text-[11px] font-bold text-slate-300 block mb-1.5">Evidence Breakdown:</span>
-              <ul className="space-y-1 text-[11px] text-slate-400">
-                {topCandidate.evidence_breakdown.map((item, bIdx) => (
-                  <li key={bIdx} className="flex items-start space-x-2">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           )}
         </div>
-      )}
+
+        {/* Verification Content Body */}
+        {verification.abstention ? (
+          <div className="pt-4 flex items-start space-x-3">
+            <AlertCircle className="w-6 h-6 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-base font-bold text-white mb-1">
+                Honest Abstention: Specific Landmark Coordinates Withheld
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed mb-2">
+                {verification.abstention_reason ||
+                  'The uploaded photograph does not exhibit sufficient visual or metadata evidence to localize to a specific landmark in Kota, Rajasthan.'}
+              </p>
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 text-xs text-slate-400">
+                <span className="font-semibold text-slate-300 block mb-1">Verification Rationale:</span>
+                {verification.confidence_basis}
+              </div>
+            </div>
+          </div>
+        ) : topCandidate ? (
+          <div className="pt-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+              <div>
+                <div className="flex items-center space-x-2 mb-1">
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                    #1 Verified Candidate
+                  </span>
+                </div>
+                <h4 className="text-2xl font-bold text-white mb-1">{topCandidate.name}</h4>
+                <p className="text-xs text-slate-300 max-w-2xl">{topCandidate.description}</p>
+              </div>
+
+              <div className="text-left md:text-right flex-shrink-0">
+                <span className="text-sm font-mono text-white block font-bold">
+                  {topCandidate.latitude.toFixed(5)}&deg; N, {topCandidate.longitude.toFixed(5)}&deg; E
+                </span>
+                <span className="text-xs text-slate-400 block">
+                  {topCandidate.city}, {topCandidate.district}, {topCandidate.state}
+                </span>
+                {topCandidate.distance_km !== null && topCandidate.distance_km !== undefined && (
+                  <span className="text-xs font-mono text-emerald-400 block mt-1">
+                    &bull; {topCandidate.distance_km.toFixed(2)} km from image GPS capture point
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-start space-x-2">
+              <Info className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-white">Confidence Basis: </span>
+                <span>{verification.confidence_basis}</span>
+              </div>
+            </div>
+
+            {/* AI Feature Meters */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 text-xs">
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-slate-400 text-[11px]">DINOv2 Structural Sim:</span>
+                  <span className="font-mono font-bold text-sky-300">
+                    {topCandidate.dinov2_structural_similarity !== undefined && topCandidate.dinov2_structural_similarity !== null
+                      ? topCandidate.dinov2_structural_similarity.toFixed(3)
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-sky-400 h-1.5 rounded-full"
+                    style={{
+                      width: `${Math.max(5, Math.min(100, ((topCandidate.dinov2_structural_similarity || 0) + 0.1) * 110))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-slate-400 text-[11px]">CLIP Visual-Semantic Sim:</span>
+                  <span className="font-mono font-bold text-purple-300">
+                    {topCandidate.clip_visual_similarity !== undefined && topCandidate.clip_visual_similarity !== null
+                      ? topCandidate.clip_visual_similarity.toFixed(3)
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-purple-400 h-1.5 rounded-full"
+                    style={{
+                      width: `${Math.max(5, Math.min(100, ((topCandidate.clip_visual_similarity || 0) + 0.1) * 110))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-slate-400 text-[11px]">OpenCV Keypoint Inliers:</span>
+                  <span className="font-mono font-bold text-emerald-300">
+                    {topCandidate.opencv_feature_inliers ?? 0} inliers
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-500 block truncate">
+                  {topCandidate.structural_agreement || 'Evaluated'}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-slate-700 mb-6 overflow-x-auto space-x-2">
@@ -187,7 +261,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           }`}
         >
           <Layers className="w-4 h-4" />
-          <span>Overview</span>
+          <span>Interactive Map & Overview</span>
         </button>
 
         <button
@@ -253,9 +327,97 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </button>
       </div>
 
-      {/* TAB 1: OVERVIEW */}
+      {/* TAB 1: OVERVIEW WITH INTERACTIVE MAP */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* Interactive Leaflet Map Component */}
+          <div>
+            <MapViewer
+              topCandidate={topCandidate}
+              alternativeCandidates={verification.alternative_candidates}
+              verification={verification}
+              cameraGPS={exif.gps}
+            />
+          </div>
+
+          {/* Verification Evidence & Confounding Factors Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Supporting Evidence List */}
+            <div className="bg-slate-900/80 border border-emerald-900/40 rounded-xl p-5">
+              <div className="flex items-center space-x-2 text-emerald-400 font-semibold text-sm mb-3">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Supporting Evidence Cross-Check</span>
+              </div>
+              {verification.supporting_evidence.length > 0 ? (
+                <ul className="space-y-2 text-xs text-slate-300">
+                  {verification.supporting_evidence.map((item, idx) => (
+                    <li key={idx} className="flex items-start space-x-2.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  No positive cross-verification checks passed. Prediction withheld to maintain geolocation integrity.
+                </p>
+              )}
+            </div>
+
+            {/* Honest Confounding Factors */}
+            <div className="bg-slate-900/80 border border-amber-900/40 rounded-xl p-5">
+              <div className="flex items-center space-x-2 text-amber-400 font-semibold text-sm mb-3">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Why This Prediction Might Be Wrong (Confounders)</span>
+              </div>
+              <ul className="space-y-2 text-xs text-slate-300">
+                {verification.confounding_factors.map((factor, idx) => (
+                  <li key={idx} className="flex items-start space-x-2.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0" />
+                    <span>{factor}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Alternative Candidates Section */}
+          {verification.alternative_candidates.length > 0 && !verification.abstention && (
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+                  <Compass className="w-4 h-4 text-sky-400" />
+                  <span>Alternative Candidate Locations</span>
+                </h4>
+                <span className="text-[11px] text-slate-400">
+                  {verification.alternative_candidates.length} alternatives evaluated
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {verification.alternative_candidates.map((alt) => (
+                  <div key={alt.id} className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-white truncate max-w-[140px]">{alt.name}</span>
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                        Rank #{alt.rank}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mb-2 truncate">{alt.category.replace('_', ' ')}</p>
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-400">Score:</span>
+                      <span className="font-mono font-bold text-sky-300">
+                        {alt.composite_rank_score !== undefined && alt.composite_rank_score !== null
+                          ? `${(alt.composite_rank_score * 100).toFixed(1)}%`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Executive Clues Summary Box */}
           <div className="bg-slate-900/80 border border-sky-900/40 rounded-xl p-5">
             <div className="flex items-center space-x-2 text-sky-400 font-semibold text-sm mb-3">
@@ -271,85 +433,10 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
               ))}
             </ul>
           </div>
-
-          {/* Forensic Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* EXIF Snapshot */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                  <Camera className="w-4 h-4 text-sky-400" />
-                  <span>EXIF Metadata Status</span>
-                </span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded font-mono ${
-                    exif.has_gps
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : exif.has_exif
-                      ? 'bg-sky-500/20 text-sky-300'
-                      : 'bg-slate-700 text-slate-400'
-                  }`}
-                >
-                  {exif.has_gps ? 'GPS Coordinates Available' : exif.has_exif ? 'Metadata Present' : 'Scrubbed / Missing'}
-                </span>
-              </div>
-              {exif.has_gps && exif.gps ? (
-                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
-                  <div className="flex items-center space-x-1.5 font-bold mb-1">
-                    <MapPin className="w-4 h-4 text-emerald-400" />
-                    <span>
-                      Lat: {exif.gps.latitude.toFixed(6)} &bull; Lon: {exif.gps.longitude.toFixed(6)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-emerald-300/80">Source: {exif.gps.coordinate_provenance}</p>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">
-                  {exif.camera_make || exif.camera_model
-                    ? `Captured with ${exif.camera_make || ''} ${exif.camera_model || ''}. GPS tags absent.`
-                    : 'No embedded GPS tags or camera metadata were found in this file.'}
-                </p>
-              )}
-            </div>
-
-            {/* OCR Snapshot */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                  <FileText className="w-4 h-4 text-amber-400" />
-                  <span>Visible Text Reading (RapidOCR)</span>
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                  {ocr.total_lines_found} Region(s)
-                </span>
-              </div>
-              {ocr.candidate_geo_clues.length > 0 ? (
-                <div className="space-y-1.5">
-                  <span className="text-[11px] text-slate-400 block">Candidate Geographic Keywords:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ocr.candidate_geo_clues.map((kw, i) => (
-                      <span
-                        key={i}
-                        className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs"
-                      >
-                        {kw}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : ocr.total_lines_found > 0 ? (
-                <p className="text-xs text-slate-300 truncate font-mono">
-                  &ldquo;{ocr.combined_text}&rdquo;
-                </p>
-              ) : (
-                <p className="text-xs text-slate-400">No legible text found in this photograph.</p>
-              )}
-            </div>
-          </div>
         </div>
       )}
 
-      {/* TAB 2: CANDIDATE RANKING (PHASE 4 CORE FEATURE) */}
+      {/* TAB 2: CANDIDATE RANKING */}
       {activeTab === 'ranking' && (
         <div className="space-y-4">
           {/* Methodology Banner */}
@@ -406,7 +493,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
 
                     <div className="flex items-center space-x-2">
                       <span className="text-xs text-slate-400">Score:</span>
-                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700">
+                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded bg-slate-800 text-white border border-slate-700">
                         {candidate.composite_rank_score !== undefined && candidate.composite_rank_score !== null
                           ? `${(candidate.composite_rank_score * 100).toFixed(1)}%`
                           : 'N/A'}
@@ -665,7 +752,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
             <div className="mt-6 pt-4 border-t border-slate-800">
               <div className="flex items-center justify-between text-xs mb-2">
                 <span className="text-slate-400">Visual Feature Vector ({clip.embedding_dims} Dimensions):</span>
-                <span className="text-[11px] text-slate-500 font-mono">Cached for Phase 4 matching</span>
+                <span className="text-[11px] text-slate-500 font-mono">Normalized unit sphere representation</span>
               </div>
               <div className="flex flex-wrap gap-1 font-mono text-[10px]">
                 {clip.embedding_preview.map((val, idx) => (
@@ -745,11 +832,28 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         <span className="flex items-center space-x-1.5">
           <Info className="w-3.5 h-3.5 text-sky-400" />
           <span>
-            Phase 4 complete: Multi-modal AI ranking executed. Leaflet mapping and spatial verification activate in Phase 5.
+            Phase 5 complete: Interactive Leaflet mapping, evidence cross-verification, and calibrated confidence active.
           </span>
         </span>
-        <span className="font-mono text-[11px] text-emerald-400">Pipeline Stage D Verified</span>
+        <span className="font-mono text-[11px] text-emerald-400">Pipeline Stage E & F Verified</span>
       </div>
     </div>
   );
 };
+
+// Supporting target icon helper
+const TargetIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" />
+  </svg>
+);
