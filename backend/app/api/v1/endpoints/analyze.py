@@ -10,6 +10,7 @@ from backend.app.schemas.analyze import AnalyzeResponse, ImageDimensions
 from backend.app.services.clip_service import analyze_with_clip
 from backend.app.services.exif_service import extract_exif_metadata
 from backend.app.services.ocr_service import extract_text_clues
+from backend.app.services.ranking_service import rank_candidates
 from backend.app.services.retrieval_service import retrieve_candidate_locations
 from backend.app.services.visual_clues_service import analyze_image_heuristics
 
@@ -102,7 +103,18 @@ async def analyze_image(
         max_candidates=5,
     )
 
-    # 7. Build evidence summary clues
+    # 7. AI Visual Matching & Multi-Modal Ranking (Phase 4)
+    if retrieval_result["candidates"]:
+        ranked_list = rank_candidates(
+            query_image=oriented_img,
+            candidates=retrieval_result["candidates"],
+            exif_data=exif_result,
+            ocr_data=ocr_result,
+        )
+        retrieval_result["candidates"] = ranked_list
+        retrieval_result["top_candidate"] = ranked_list[0] if ranked_list else None
+
+    # 8. Build evidence summary clues
     summary_clues: List[str] = []
 
     if exif_result.get("has_gps") and exif_result.get("gps"):
@@ -134,16 +146,22 @@ async def analyze_image(
         f"Visual properties: {heuristics_result['framing']} format, {heuristics_result['lighting_condition']}, {heuristics_result['focus_quality']}."
     )
 
-    if retrieval_result["candidates"]:
+    if retrieval_result.get("top_candidate"):
+        top_c = retrieval_result["top_candidate"]
+        summary_clues.append(
+            f"AI Multi-Modal Ranking #1: {top_c['name']} (DINOv2: {top_c['dinov2_structural_similarity']:.2f}, "
+            f"CLIP: {top_c['clip_visual_similarity']:.2f}, Score: {top_c['composite_rank_score']:.2f})"
+        )
+    elif retrieval_result["candidates"]:
         names = [c["name"] for c in retrieval_result["candidates"][:3]]
         summary_clues.append(f"Geographic Candidate Retrieval: {len(retrieval_result['candidates'])} place(s) retrieved ({', '.join(names)}).")
     else:
         summary_clues.append("Geographic Candidate Retrieval: No matching places in Kota database; abstaining.")
 
     message = (
-        f"Analyzed '{sanitized_name}': Extracted {len(summary_clues)} investigative clues and retrieved "
-        f"{len(retrieval_result['candidates'])} candidate place(s) from the Kota, Rajasthan database. "
-        "Multi-modal visual feature ranking will be executed in Phase 4."
+        f"Analyzed '{sanitized_name}': Ranked {len(retrieval_result['candidates'])} candidate place(s) "
+        "using DINOv2 structural embeddings, CLIP visual similarity, and OpenCV geometric feature matching. "
+        "Spatial verification and mapping will be executed in Phase 5."
     )
 
     return AnalyzeResponse(
@@ -153,7 +171,7 @@ async def analyze_image(
         format=format_name,
         size_bytes=len(raw_bytes),
         dimensions=ImageDimensions(width=width, height=height),
-        phase="Phase 3: Geographic Candidate Database",
+        phase="Phase 4: AI Visual Matching & Ranking",
         exif=exif_result,
         ocr=ocr_result,
         heuristics=heuristics_result,

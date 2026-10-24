@@ -13,6 +13,8 @@ import {
   Search,
   Compass,
   ShieldCheck,
+  Award,
+  Cpu,
 } from 'lucide-react';
 import { AnalyzeResponse } from '../types';
 
@@ -22,9 +24,10 @@ interface AnalysisResultsProps {
 }
 
 export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onReset }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'candidates' | 'exif' | 'ocr' | 'clip' | 'heuristics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'ranking' | 'exif' | 'ocr' | 'clip' | 'heuristics'>('overview');
 
   const { exif, ocr, clip, heuristics, retrieval } = result;
+  const topCandidate = retrieval.top_candidate || (retrieval.candidates.length > 0 ? retrieval.candidates[0] : null);
 
   return (
     <div className="w-full bg-slate-800/60 border border-slate-700/80 rounded-2xl p-6 sm:p-8 backdrop-blur-sm shadow-xl mt-6 animate-fadeIn">
@@ -36,9 +39,9 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="text-xl font-bold text-white">Visual Clues & Geographic Retrieval</h3>
+              <h3 className="text-xl font-bold text-white">AI Visual Matching & Candidate Ranking</h3>
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                Phase 3 Complete
+                Phase 4 Complete
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -57,21 +60,121 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </button>
       </div>
 
-      {/* Executive Clues Summary Box */}
-      <div className="my-6 bg-slate-900/80 border border-sky-900/40 rounded-xl p-5">
-        <div className="flex items-center space-x-2 text-sky-400 font-semibold text-sm mb-3">
-          <Eye className="w-4 h-4" />
-          <span>Extracted Investigative Clues & Geographic Signals</span>
+      {/* Top #1 Match Card (When candidates are found) */}
+      {topCandidate && !retrieval.abstention && (
+        <div className="my-6 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border border-emerald-500/50 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 rounded-lg bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                <Award className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                Top Candidate Prediction (#1 Ranked)
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-400">Composite Match Score:</span>
+              <span className="text-sm font-mono font-bold px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                {topCandidate.composite_rank_score !== undefined && topCandidate.composite_rank_score !== null
+                  ? `${(topCandidate.composite_rank_score * 100).toFixed(1)}%`
+                  : 'N/A'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div>
+              <h4 className="text-xl font-bold text-white mb-1">{topCandidate.name}</h4>
+              <p className="text-xs text-slate-300 max-w-2xl">{topCandidate.description}</p>
+            </div>
+            <div className="text-left md:text-right flex-shrink-0">
+              <span className="text-xs font-mono text-slate-300 block">
+                {topCandidate.latitude.toFixed(4)}&deg; N, {topCandidate.longitude.toFixed(4)}&deg; E
+              </span>
+              <span className="text-[11px] text-slate-400 block">{topCandidate.city}, {topCandidate.state}</span>
+              {topCandidate.distance_km !== null && topCandidate.distance_km !== undefined && (
+                <span className="text-[11px] font-mono text-emerald-400 block mt-0.5">
+                  &bull; {topCandidate.distance_km} km from EXIF coordinates
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* AI Feature Meters */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800 text-xs">
+            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-slate-400 text-[11px]">DINOv2 Structural Sim:</span>
+                <span className="font-mono font-bold text-sky-300">
+                  {topCandidate.dinov2_structural_similarity !== undefined && topCandidate.dinov2_structural_similarity !== null
+                    ? topCandidate.dinov2_structural_similarity.toFixed(3)
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-sky-400 h-1.5 rounded-full"
+                  style={{
+                    width: `${Math.max(
+                      5,
+                      Math.min(100, ((topCandidate.dinov2_structural_similarity || 0) + 0.1) * 110)
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-slate-400 text-[11px]">CLIP Visual-Semantic Sim:</span>
+                <span className="font-mono font-bold text-purple-300">
+                  {topCandidate.clip_visual_similarity !== undefined && topCandidate.clip_visual_similarity !== null
+                    ? topCandidate.clip_visual_similarity.toFixed(3)
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-purple-400 h-1.5 rounded-full"
+                  style={{
+                    width: `${Math.max(
+                      5,
+                      Math.min(100, ((topCandidate.clip_visual_similarity || 0) + 0.1) * 110)
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-slate-400 text-[11px]">OpenCV Keypoint Inliers:</span>
+                <span className="font-mono font-bold text-emerald-300">
+                  {topCandidate.opencv_feature_inliers ?? 0} inliers
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-500 block truncate">
+                {topCandidate.structural_agreement || 'Evaluated'}
+              </span>
+            </div>
+          </div>
+
+          {/* Evidence Breakdown */}
+          {topCandidate.evidence_breakdown && topCandidate.evidence_breakdown.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-800/80">
+              <span className="text-[11px] font-bold text-slate-300 block mb-1.5">Evidence Breakdown:</span>
+              <ul className="space-y-1 text-[11px] text-slate-400">
+                {topCandidate.evidence_breakdown.map((item, bIdx) => (
+                  <li key={bIdx} className="flex items-start space-x-2">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-        <ul className="space-y-2 text-xs text-slate-300">
-          {result.summary_clues.map((clue, idx) => (
-            <li key={idx} className="flex items-start space-x-2.5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400 mt-1.5 flex-shrink-0" />
-              <span>{clue}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      )}
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-slate-700 mb-6 overflow-x-auto space-x-2">
@@ -88,16 +191,16 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </button>
 
         <button
-          onClick={() => setActiveTab('candidates')}
+          onClick={() => setActiveTab('ranking')}
           className={`pb-3 px-3 text-xs font-semibold flex items-center space-x-1.5 border-b-2 transition whitespace-nowrap ${
-            activeTab === 'candidates'
+            activeTab === 'ranking'
               ? 'border-emerald-400 text-emerald-300'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Compass className="w-4 h-4 text-emerald-400" />
+          <Award className="w-4 h-4 text-amber-400" />
           <span>
-            Candidate Places ({retrieval.candidates.length > 0 ? `${retrieval.candidates.length} Retrieved` : 'Abstained'})
+            Candidate Ranking ({retrieval.candidates.length > 0 ? `${retrieval.candidates.length} Ranked` : 'Abstained'})
           </span>
         </button>
 
@@ -153,56 +256,20 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Candidate Locations Snapshot */}
-          <div className="bg-slate-900/80 border border-emerald-500/30 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold text-white flex items-center space-x-2">
-                <Compass className="w-5 h-5 text-emerald-400" />
-                <span>Geographic Candidate Retrieval (Kota, Rajasthan)</span>
-              </span>
-              <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono">
-                {retrieval.candidates.length} Place(s) Retrieved
-              </span>
+          {/* Executive Clues Summary Box */}
+          <div className="bg-slate-900/80 border border-sky-900/40 rounded-xl p-5">
+            <div className="flex items-center space-x-2 text-sky-400 font-semibold text-sm mb-3">
+              <Eye className="w-4 h-4" />
+              <span>Extracted Investigative Clues & Model Signals</span>
             </div>
-
-            {retrieval.abstention || retrieval.candidates.length === 0 ? (
-              <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/60 text-xs text-slate-300">
-                <span className="font-semibold text-amber-300 block mb-1">Honest Abstention:</span>
-                <span>{retrieval.message}</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
-                {retrieval.candidates.slice(0, 3).map((candidate) => (
-                  <div
-                    key={candidate.id}
-                    className="p-3.5 rounded-lg bg-slate-950/70 border border-slate-800 hover:border-slate-700 transition"
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="font-bold text-xs text-white line-clamp-1">{candidate.name}</span>
-                      {candidate.distance_km !== null && candidate.distance_km !== undefined && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 flex-shrink-0 ml-1">
-                          {candidate.distance_km} km
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-sky-400 block mb-2">{candidate.category}</span>
-                    <div className="text-[11px] font-mono text-slate-400 mb-2">
-                      {candidate.latitude.toFixed(4)}&deg; N, {candidate.longitude.toFixed(4)}&deg; E
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {candidate.matched_clues.map((clue, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700"
-                        >
-                          {clue}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <ul className="space-y-2 text-xs text-slate-300">
+              {result.summary_clues.map((clue, idx) => (
+                <li key={idx} className="flex items-start space-x-2.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400 mt-1.5 flex-shrink-0" />
+                  <span>{clue}</span>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {/* Forensic Cards Grid */}
@@ -282,22 +349,19 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         </div>
       )}
 
-      {/* TAB 2: CANDIDATE PLACES (PHASE 3 CORE FEATURE) */}
-      {activeTab === 'candidates' && (
+      {/* TAB 2: CANDIDATE RANKING (PHASE 4 CORE FEATURE) */}
+      {activeTab === 'ranking' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-800 text-xs">
-            <div>
-              <span className="text-slate-400 block text-[11px]">Database Scope:</span>
-              <span className="font-bold text-white">{retrieval.dataset_scope}</span>
+          {/* Methodology Banner */}
+          <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 text-xs">
+            <div className="flex items-center space-x-2 text-sky-400 font-bold mb-1">
+              <Cpu className="w-4 h-4" />
+              <span>Documented Multi-Modal Ranking Methodology</span>
             </div>
-            <div>
-              <span className="text-slate-400 block text-[11px]">Total Documented Landmarks:</span>
-              <span className="font-bold text-white font-mono">{retrieval.total_database_places} Places</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block text-[11px]">Retrieved by Clues:</span>
-              <span className="font-bold text-emerald-400 font-mono">{retrieval.candidates.length} Matches</span>
-            </div>
+            <p className="text-slate-300 mb-2">{retrieval.ranking_methodology}</p>
+            <p className="text-[11px] text-slate-500">
+              Note: Similarity values are relative mathematical feature alignments, not calibrated probabilities of correctness.
+            </p>
           </div>
 
           {retrieval.abstention || retrieval.candidates.length === 0 ? (
@@ -314,60 +378,74 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
             </div>
           ) : (
             <div className="space-y-4">
-              {retrieval.candidates.map((candidate, idx) => (
+              {retrieval.candidates.map((candidate) => (
                 <div
                   key={candidate.id}
-                  className="bg-slate-900/70 border border-slate-800 hover:border-slate-700 rounded-xl p-5 transition space-y-3"
+                  className={`bg-slate-900/80 border rounded-xl p-5 transition space-y-3 ${
+                    candidate.rank === 1
+                      ? 'border-emerald-500/50 shadow-md ring-1 ring-emerald-500/20'
+                      : 'border-slate-800 hover:border-slate-700'
+                  }`}
                 >
                   <div className="flex items-start justify-between flex-wrap gap-2">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
-                          #{idx + 1}
-                        </span>
+                    <div className="flex items-center space-x-3">
+                      <span
+                        className={`text-xs font-mono px-2.5 py-1 rounded-lg font-bold ${
+                          candidate.rank === 1
+                            ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+                            : 'bg-slate-800 text-slate-300'
+                        }`}
+                      >
+                        Rank #{candidate.rank}
+                      </span>
+                      <div>
                         <h4 className="text-base font-bold text-white">{candidate.name}</h4>
-                        <span className="text-xs px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
-                          {candidate.category}
-                        </span>
+                        <span className="text-xs text-sky-400">{candidate.category}</span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">{candidate.description}</p>
                     </div>
 
-                    {candidate.distance_km !== null && candidate.distance_km !== undefined && (
-                      <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        {candidate.distance_km} km from EXIF
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-slate-400">Score:</span>
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700">
+                        {candidate.composite_rank_score !== undefined && candidate.composite_rank_score !== null
+                          ? `${(candidate.composite_rank_score * 100).toFixed(1)}%`
+                          : 'N/A'}
                       </span>
-                    )}
-                  </div>
-
-                  {/* Coordinates & Provenance */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs pt-1">
-                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800/80">
-                      <span className="text-[10px] text-slate-500 block">Verified Coordinates</span>
-                      <span className="font-mono text-slate-200">
-                        {candidate.latitude.toFixed(4)}&deg; N, {candidate.longitude.toFixed(4)}&deg; E
-                      </span>
-                      <span className="text-[10px] text-slate-500 block">({candidate.precision})</span>
-                    </div>
-
-                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800/80">
-                      <span className="text-[10px] text-slate-500 block">Location Hierarchy</span>
-                      <span className="text-slate-200">
-                        {candidate.city}, {candidate.district}, {candidate.state}
-                      </span>
-                    </div>
-
-                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800/80">
-                      <span className="text-[10px] text-slate-500 block">Traceable Data Source</span>
-                      <span className="text-slate-300 truncate block" title={candidate.source}>
-                        {candidate.source}
-                      </span>
-                      <span className="text-[10px] text-slate-500">{candidate.license}</span>
                     </div>
                   </div>
 
-                  {/* Retrieval Clues & Reasons */}
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <p className="text-xs text-slate-300">{candidate.description}</p>
+
+                  {/* Feature Breakdown Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 text-xs">
+                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">DINOv2 Structural Sim</span>
+                      <span className="font-mono text-sky-300 font-bold">
+                        {candidate.dinov2_structural_similarity !== undefined && candidate.dinov2_structural_similarity !== null
+                          ? candidate.dinov2_structural_similarity.toFixed(3)
+                          : '0.000'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">CLIP Visual-Semantic Sim</span>
+                      <span className="font-mono text-purple-300 font-bold">
+                        {candidate.clip_visual_similarity !== undefined && candidate.clip_visual_similarity !== null
+                          ? candidate.clip_visual_similarity.toFixed(3)
+                          : '0.000'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950/70 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">OpenCV RANSAC Inliers</span>
+                      <span className="font-mono text-emerald-300 font-bold">
+                        {candidate.opencv_feature_inliers ?? 0} matches
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Supporting Clues */}
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2 text-xs">
                     <div className="flex items-center space-x-1.5 flex-wrap gap-1">
                       <span className="text-slate-400 text-[11px]">Matched by:</span>
                       {candidate.matched_clues.map((clue, cIdx) => (
@@ -380,8 +458,8 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
                       ))}
                     </div>
 
-                    <div className="text-[11px] text-slate-400 italic">
-                      {candidate.retrieval_reasons.join(' • ')}
+                    <div className="text-[11px] font-mono text-slate-400">
+                      {candidate.latitude.toFixed(4)}&deg; N, {candidate.longitude.toFixed(4)}&deg; E
                     </div>
                   </div>
                 </div>
@@ -667,10 +745,10 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, onRese
         <span className="flex items-center space-x-1.5">
           <Info className="w-3.5 h-3.5 text-sky-400" />
           <span>
-            Phase 3 complete: Candidate retrieval connected with Kota, Rajasthan dataset. Multi-modal AI ranking begins in Phase 4.
+            Phase 4 complete: Multi-modal AI ranking executed. Leaflet mapping and spatial verification activate in Phase 5.
           </span>
         </span>
-        <span className="font-mono text-[11px] text-emerald-400">Pipeline Stage C Verified</span>
+        <span className="font-mono text-[11px] text-emerald-400">Pipeline Stage D Verified</span>
       </div>
     </div>
   );

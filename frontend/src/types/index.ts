@@ -101,6 +101,15 @@ export interface CandidatePlace {
   retrieval_reasons: string[];
   matched_clues: string[];
   visual_features: string[];
+  // Phase 4 Multi-Modal AI Ranking Fields
+  rank?: number | null;
+  composite_rank_score?: number | null;
+  clip_visual_similarity?: number | null;
+  dinov2_structural_similarity?: number | null;
+  opencv_feature_inliers?: number | null;
+  inlier_ratio?: number | null;
+  structural_agreement?: string | null;
+  evidence_breakdown?: string[];
 }
 
 export interface CandidateRetrievalResult {
@@ -108,6 +117,8 @@ export interface CandidateRetrievalResult {
   total_database_places: number;
   candidates_retrieved_count: number;
   candidates: CandidatePlace[];
+  top_candidate?: CandidatePlace | null;
+  ranking_methodology: string;
   abstention: boolean;
   message: string;
 }

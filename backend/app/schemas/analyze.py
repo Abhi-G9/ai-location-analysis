@@ -97,6 +97,15 @@ class CandidatePlace(BaseModel):
     retrieval_reasons: List[str] = []
     matched_clues: List[str] = []
     visual_features: List[str] = []
+    # Phase 4 AI Visual Ranking Fields
+    rank: Optional[int] = None
+    composite_rank_score: Optional[float] = None
+    clip_visual_similarity: Optional[float] = None
+    dinov2_structural_similarity: Optional[float] = None
+    opencv_feature_inliers: Optional[int] = None
+    inlier_ratio: Optional[float] = None
+    structural_agreement: Optional[str] = None
+    evidence_breakdown: List[str] = []
 
 
 class CandidateRetrievalResult(BaseModel):
@@ -104,6 +113,11 @@ class CandidateRetrievalResult(BaseModel):
     total_database_places: int
     candidates_retrieved_count: int
     candidates: List[CandidatePlace] = []
+    top_candidate: Optional[CandidatePlace] = None
+    ranking_methodology: str = (
+        "Multi-Modal Feature Fusion: 50% DINOv2 Structural + 35% CLIP Visual + "
+        "15% OpenCV RANSAC Inliers + Clue Agreement Boosts"
+    )
     abstention: bool = False
     message: str
 
@@ -111,7 +125,7 @@ class CandidateRetrievalResult(BaseModel):
 class AnalyzeResponse(BaseModel):
     """
     Structured image-analysis results returned by POST /api/v1/analyze.
-    Phase 3 integrates candidate location retrieval from the geographic database.
+    Phase 4 incorporates multi-modal AI visual matching and transparent candidate ranking.
     """
     status: str = Field(..., description="Status of the image intake, e.g. 'valid'")
     filename: str = Field(..., description="Sanitized original filename")
@@ -119,7 +133,7 @@ class AnalyzeResponse(BaseModel):
     format: str = Field(..., description="Image format (JPEG, PNG, WEBP)")
     size_bytes: int = Field(..., description="File size in bytes")
     dimensions: ImageDimensions = Field(..., description="Image width and height in pixels")
-    phase: str = Field(default="Phase 3: Geographic Candidate Database")
+    phase: str = Field(default="Phase 4: AI Visual Matching & Ranking")
     exif: EXIFMetadata
     ocr: OCRResult
     heuristics: VisualHeuristics
