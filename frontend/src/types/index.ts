@@ -158,3 +158,47 @@ export interface AnalyzeResponse {
 }
 
 export type UploadState = 'idle' | 'selected' | 'uploading' | 'success' | 'error';
+
+export interface EvaluationSampleResult {
+  sample_id: string;
+  sample_type: string;
+  description: string;
+  ground_truth_place_id?: string | null;
+  ground_truth_name?: string | null;
+  predicted_top_1_name?: string | null;
+  predicted_top_1_id?: string | null;
+  confidence_category: string;
+  precision_level: string;
+  estimated_error_km?: number | null;
+  actual_error_km?: number | null;
+  is_top_1_correct: boolean;
+  is_top_5_correct: boolean;
+  abstained: boolean;
+  clues_provided: string[];
+}
+
+export interface ModelCardEntry {
+  model_name: string;
+  architecture: string;
+  primary_task: string;
+  feature_dimension: string;
+  rationale: string;
+  hardware_target: string;
+}
+
+export interface EvaluationReport {
+  timestamp: string;
+  dataset_scope: string;
+  total_samples: number;
+  positive_samples_count: number;
+  negative_samples_count: number;
+  top_1_accuracy_percent: number;
+  top_5_accuracy_percent: number;
+  median_error_km?: number | null;
+  negative_abstention_rate_percent: number;
+  false_positive_rate_percent: number;
+  model_cards: ModelCardEntry[];
+  limitations: string[];
+  future_work: string[];
+  sample_results: EvaluationSampleResult[];
+}

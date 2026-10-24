@@ -4,10 +4,12 @@ import { StatusBanner } from './components/StatusBanner';
 import { PhaseNotice } from './components/PhaseNotice';
 import { ImageUploader } from './components/ImageUploader';
 import { AnalysisResults } from './components/AnalysisResults';
+import { EvaluationModal } from './components/EvaluationModal';
 import { AnalyzeResponse } from './types';
 
 export const App: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResponse | null>(null);
+  const [isEvaluationOpen, setIsEvaluationOpen] = useState<boolean>(false);
 
   const handleIntakeSuccess = (result: AnalyzeResponse) => {
     setAnalysisResult(result);
@@ -19,7 +21,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <Header />
+      <Header onOpenEvaluation={() => setIsEvaluationOpen(true)} />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <StatusBanner />
@@ -40,8 +42,13 @@ export const App: React.FC = () => {
         </div>
       </main>
 
+      <EvaluationModal
+        isOpen={isEvaluationOpen}
+        onClose={() => setIsEvaluationOpen(false)}
+      />
+
       <footer className="border-t border-slate-900 bg-slate-950/80 py-6 text-center text-xs text-slate-500">
-        <p>GeoLens AI &bull; Multi-Stage Image Geolocation &bull; Phase 1 Foundation Active</p>
+        <p>GeoLens AI &bull; Multi-Stage Image Geolocation &bull; Phase 6 Release Ready</p>
       </footer>
     </div>
   );

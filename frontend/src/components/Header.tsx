@@ -1,7 +1,11 @@
 import React from 'react';
-import { Compass, ShieldCheck } from 'lucide-react';
+import { Compass, ShieldCheck, Award } from 'lucide-react';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onOpenEvaluation?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onOpenEvaluation }) => {
   return (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -13,7 +17,7 @@ export const Header: React.FC = () => {
             <div className="flex items-center space-x-2">
               <span className="font-bold text-lg text-white tracking-tight">GeoLens AI</span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Phase 5 Active
+                Phase 6 Release Ready
               </span>
             </div>
             <p className="text-xs text-slate-400 hidden sm:block">
@@ -23,9 +27,19 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-3 text-xs text-slate-400">
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-slate-800/80 border border-slate-700">
+          {onOpenEvaluation && (
+            <button
+              onClick={onOpenEvaluation}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition font-semibold"
+            >
+              <Award className="w-4 h-4 text-emerald-400" />
+              <span>Evaluation & Model Cards</span>
+            </button>
+          )}
+
+          <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Strict Privacy: No Permanent Storage</span>
+            <span>Strict Privacy: RAM Only</span>
           </div>
         </div>
       </div>
