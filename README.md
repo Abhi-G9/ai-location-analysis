@@ -6,13 +6,13 @@ Instead of treating image geolocation as a "black box" that guesses an exact coo
 
 ---
 
-## Current Status: Phase 1 Complete (Foundation & Intake)
+## Current Status: Phase 2 Complete (Visual Clues & Image Analysis)
 
 This project is built phase-by-phase following strict engineering and pedagogical standards:
 
-- [x] **Phase 1: Project Foundation & Image Intake** (Current)
-- [ ] **Phase 2: Visual Clues & Metadata Extraction** (Next)
-- [ ] **Phase 3: Geographic Candidate Database (Kota / Rajasthan)**
+- [x] **Phase 1: Project Foundation & Image Intake** (Complete)
+- [x] **Phase 2: Visual Clues & Metadata Extraction** (Complete)
+- [ ] **Phase 3: Geographic Candidate Database (Kota / Rajasthan)** (Next)
 - [ ] **Phase 4: AI Visual Matching & Ranking (CLIP, DINOv2, OpenCV)**
 - [ ] **Phase 5: Verification, Leaflet Mapping & Honest Confidence**
 - [ ] **Phase 6: Evaluation, Privacy Hardening & Release Readiness**
@@ -111,7 +111,29 @@ Execute the automated test suite with pytest:
 .\.venv\Scripts\pytest -v
 ```
 
-All 10 tests should pass, verifying health status, valid format uploads (JPEG, PNG, WebP), rejection of non-images, oversized files, corrupted payloads, and path traversal protection.
+All 15 tests should pass, verifying health status, valid format uploads (JPEG, PNG, WebP), EXIF GPS coordinates, graceful handling of missing metadata, RapidOCR sign text detection, OpenCLIP semantic classification, computer vision heuristics (lighting, sharpness, dominant colors), rejection of non-images, oversized files, corrupted payloads, and path traversal protection.
+
+---
+
+## Phase 2 Milestone: Multi-Stage Visual Clues Extraction
+
+In Phase 2, we incorporated real AI/ML visual feature extraction and metadata forensics:
+
+1. **EXIF Metadata Forensics**:
+   - Parses camera make, model, software, exposure time, aperture (f-number), focal length, ISO, and capture date.
+   - Extracts GPS coordinates, altitude, and heading, converting rational degrees/minutes/seconds into decimal degrees.
+   - Handles images with missing or stripped metadata gracefully without pipeline failure.
+2. **Text Reading via RapidOCR**:
+   - Uses a lightweight, high-performance ONNX model to read text on signboards, milestones, shopfronts, and posters.
+   - Extracts bounding boxes and confidence scores, filtering for geographic keywords (e.g. "Kota", "Rajasthan", "NH 52").
+3. **Computer Vision Heuristics**:
+   - Calculates ITU-R BT.601 mean luminance for lighting conditions (daylight, golden hour, night).
+   - Computes Laplacian variance for image focus and sharpness.
+   - Quantizes dominant colors via K-Means clustering, providing hex values and area coverage.
+4. **Zero-Shot Visual Semantics via OpenCLIP**:
+   - Uses the pretrained `ViT-B-32` model (`laion2b_s34b_b79k`) to classify architectural styles, terrain types, and environmental settings.
+   - Outputs factual cosine similarities and normalized feature vectors for subsequent geographic candidate matching.
+   - Avoids redundant model reloading by caching reusable text embeddings.
 
 ### 4. Frontend Setup
 From a new terminal window in the project root:

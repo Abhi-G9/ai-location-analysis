@@ -12,8 +12,8 @@ export const Header: React.FC = () => {
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-bold text-lg text-white tracking-tight">GeoLens AI</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                Phase 1 Active
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Phase 2 Active
               </span>
             </div>
             <p className="text-xs text-slate-400 hidden sm:block">
