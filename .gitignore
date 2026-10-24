@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# Pytest / Testing / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+*.local
+
+# Environment variables & secrets (NEVER COMMIT)
+.env
+*.env
+!.env.example
+*.pem
+*.key
+
+# Temporary files & uploads
+uploads/
+backend/uploads/
+*.tmp
+temp/
+*.log
+
+# Operating System
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
