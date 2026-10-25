@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Cpu,
   CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 import { uploadAndAnalyzeImage } from '../services/api';
 import { AnalyzeResponse } from '../types';
@@ -31,26 +32,26 @@ interface AnalysisStep {
 const ANALYSIS_STEPS: AnalysisStep[] = [
   {
     id: 'forensics',
-    label: 'Forensic & EXIF Analysis',
-    detail: 'Inspecting hardware tags, GPS coordinates, and camera optics…',
+    label: 'Camera & EXIF Inspection',
+    detail: 'Reading camera model, GPS coordinates, and capture metadata…',
     icon: ShieldCheck,
   },
   {
     id: 'gemini',
     label: 'Gemini Visual Reasoning & OCR',
-    detail: 'Analyzing architectural forms, visible text, signage, and scripts…',
+    detail: 'Recognizing background monuments, street signs, and script…',
     icon: Sparkles,
   },
   {
-    id: 'web_matching',
-    label: 'Deep Visual & Structural Alignment',
-    detail: 'Evaluating dense structural geometry with DINOv2 and OpenCLIP…',
+    id: 'alignment',
+    label: 'Geographic Search & Verification',
+    detail: 'Cross-referencing OpenStreetMap and spatial candidate indexes…',
     icon: Search,
   },
   {
-    id: 'verification',
-    label: 'Reference Imagery & Verification',
-    detail: 'Cross-verifying structural cues and calibrating confidence…',
+    id: 'calibration',
+    label: 'Final Evidence Synthesis',
+    detail: 'Pinpointing confirmed coordinates and calibrating confidence…',
     icon: Cpu,
   },
 ];
@@ -68,14 +69,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Smoothly cycle through analysis steps to provide real-time feedback
+  // Smoothly cycle through analysis steps to provide real-time user feedback
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (isAnalyzing) {
       setActiveStepIndex(0);
       interval = setInterval(() => {
         setActiveStepIndex((prev) => (prev < ANALYSIS_STEPS.length - 1 ? prev + 1 : prev));
-      }, 2500);
+      }, 2400);
     } else {
       setActiveStepIndex(0);
     }
@@ -86,7 +87,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
 
   const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return `Unsupported format (${file.type || 'unknown'}). Please select a JPEG, PNG, or WebP photograph.`;
+      return `Unsupported format (${file.type || 'unknown'}). Please choose a JPG, PNG, or WebP photo.`;
     }
     const sizeMb = file.size / (1024 * 1024);
     if (sizeMb > MAX_SIZE_MB) {
@@ -164,33 +165,41 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     } catch (err: any) {
       setIsAnalyzing(false);
       if (onAnalyzingStateChange) onAnalyzingStateChange(false);
-      setErrorMessage(err.message || 'An unexpected error occurred while analyzing the image.');
+      setErrorMessage(err.message || 'An error occurred while analyzing the image. Please try again.');
     }
   };
 
   return (
-    <div className="w-full bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+    <div className="w-full bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-sm transition-all space-y-6">
+      {/* Error Banner */}
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start space-x-2.5">
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start space-x-3">
           <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-          <span className="flex-1 font-medium">{errorMessage}</span>
-          <button onClick={() => setErrorMessage(null)} className="text-rose-600 hover:text-rose-800">
+          <div className="flex-1">
+            <span className="font-semibold block">Notice:</span>
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            onClick={() => setErrorMessage(null)}
+            className="text-rose-600 hover:text-rose-900 transition-colors"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {!selectedFile ? (
+        /* Empty Upload Dropzone */
         <div
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-10 sm:p-12 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center space-y-4 group ${
+          className={`relative border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center space-y-4 group ${
             dragActive
-              ? 'border-blue-500 bg-blue-50/70 scale-[0.99] shadow-inner'
-              : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50/70'
+              ? 'border-teal-500 bg-teal-50/50 scale-[0.99] shadow-inner'
+              : 'border-slate-300 hover:border-teal-400 hover:bg-slate-50/60'
           }`}
         >
           <input
@@ -200,65 +209,72 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             className="hidden"
             onChange={handleInputChange}
           />
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-50 to-indigo-50 border border-blue-200/70 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform duration-200 shadow-xs">
-            <UploadCloud className="w-7 h-7 text-blue-600" />
+
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-teal-50 to-emerald-50 border border-teal-200/80 flex items-center justify-center text-teal-600 group-hover:scale-105 transition-transform duration-200 shadow-xs">
+            <UploadCloud className="w-8 h-8 text-teal-600" />
           </div>
-          <div className="space-y-1">
-            <p className="text-base font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-              Click to select a photo, or drag and drop here
+
+          <div className="space-y-1.5 max-w-sm">
+            <p className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-teal-600 transition-colors">
+              Choose a photo, or drag it here
             </p>
-            <p className="text-xs text-slate-500">
-              Supports JPEG, PNG, or WebP photographs up to 10 MB
+            <p className="text-xs sm:text-sm text-slate-500 font-normal">
+              Supports JPEG, PNG, or WebP up to 10 MB
             </p>
+          </div>
+
+          <div className="pt-2 flex items-center space-x-2 text-xs font-semibold text-teal-700">
+            <span>Click to browse files</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
       ) : (
+        /* Image Preview & Analysis Card */
         <div className="space-y-6">
-          {/* Centered Image Preview Card */}
-          <div className="relative max-w-md mx-auto rounded-xl overflow-hidden bg-slate-100/80 border border-slate-200 shadow-inner flex items-center justify-center min-h-[220px] max-h-[360px]">
+          <div className="relative max-w-md mx-auto rounded-2xl overflow-hidden bg-slate-100/80 border border-slate-200 shadow-inner flex items-center justify-center min-h-[220px] max-h-[380px]">
             {previewUrl && (
               <img
                 src={previewUrl}
                 alt="Selected preview"
-                className="object-contain max-h-[360px] w-full rounded-xl"
+                className="object-contain max-h-[380px] w-full rounded-2xl"
               />
             )}
             {!isAnalyzing && (
               <button
                 onClick={handleReset}
                 className="absolute top-3 right-3 p-1.5 bg-white/95 hover:bg-white text-slate-700 hover:text-slate-900 rounded-full shadow-md border border-slate-200 transition-transform active:scale-95"
-                title="Choose different image"
+                title="Choose different photo"
               >
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          {/* Analysis Active: Multi-Stage Progress State */}
+          {/* Analysis Active: Real-Time Stepper */}
           {isAnalyzing ? (
-            <div className="max-w-md mx-auto p-6 rounded-2xl bg-gradient-to-br from-blue-50/50 via-slate-50 to-indigo-50/40 border border-blue-100 shadow-xs space-y-5">
+            <div className="max-w-md mx-auto p-6 rounded-2xl bg-gradient-to-br from-teal-50/40 via-slate-50 to-emerald-50/40 border border-teal-100 shadow-xs space-y-5">
               <div className="text-center space-y-1.5">
-                <div className="inline-flex items-center space-x-2 text-blue-600 font-semibold text-sm">
-                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <span>Analyzing visual clues and searching for matching locations…</span>
+                <div className="inline-flex items-center space-x-2 text-teal-800 font-bold text-sm">
+                  <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Inspecting photo &amp; searching location…</span>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Executing multi-modal neural inspection and online image search
+                  Running Gemini AI visual analysis and spatial verification
                 </p>
               </div>
 
               {/* Progress Bar */}
               <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 h-1.5 rounded-full transition-all duration-700 ease-out"
+                  className="bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 h-1.5 rounded-full transition-all duration-700 ease-out"
                   style={{
                     width: `${Math.min(100, ((activeStepIndex + 1) / ANALYSIS_STEPS.length) * 100)}%`,
                   }}
                 />
               </div>
 
-              {/* Step List */}
-              <div className="space-y-2.5 pt-1">
+              {/* Steps Progress */}
+              <div className="space-y-2 pt-1">
                 {ANALYSIS_STEPS.map((step, idx) => {
                   const Icon = step.icon;
                   const isDone = idx < activeStepIndex;
@@ -269,7 +285,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                       key={step.id}
                       className={`flex items-center space-x-3 p-2.5 rounded-xl border text-xs transition-all duration-300 ${
                         isCurrent
-                          ? 'bg-white border-blue-200 shadow-xs text-slate-900 font-medium'
+                          ? 'bg-white border-teal-200 shadow-xs text-slate-900 font-medium'
                           : isDone
                           ? 'bg-slate-50/60 border-slate-200/60 text-slate-700'
                           : 'opacity-40 border-transparent text-slate-400'
@@ -280,7 +296,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                           isDone
                             ? 'bg-emerald-100 text-emerald-700'
                             : isCurrent
-                            ? 'bg-blue-600 text-white animate-pulse'
+                            ? 'bg-teal-600 text-white animate-pulse'
                             : 'bg-slate-200 text-slate-500'
                         }`}
                       >
@@ -294,7 +310,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="truncate">{step.label}</span>
                           {isCurrent && (
-                            <span className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">
+                            <span className="text-[10px] text-teal-700 font-bold uppercase tracking-wider">
                               In Progress
                             </span>
                           )}
@@ -311,18 +327,18 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               </div>
             </div>
           ) : (
-            /* Clear Analyze Image Buttons */
+            /* Action Buttons */
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-sm mx-auto">
               <button
                 onClick={handleAnalyze}
-                className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-blue-500/20 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center space-x-2"
+                className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold text-sm transition-all shadow-md shadow-teal-600/20 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 flex items-center justify-center space-x-2"
               >
-                <Sparkles className="w-4 h-4 text-blue-200" />
-                <span>Analyze Image</span>
+                <Sparkles className="w-4 h-4 text-emerald-100" />
+                <span>Find Location</span>
               </button>
               <button
                 onClick={handleReset}
-                className="w-full sm:w-auto py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-sm transition active:scale-[0.98]"
+                className="w-full sm:w-auto py-3.5 px-5 rounded-2xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition active:scale-[0.98]"
               >
                 Change Photo
               </button>
