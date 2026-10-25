@@ -1,7 +1,11 @@
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 from PIL import Image
-import torch
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 logger = logging.getLogger("geolens.dinov2")
 
@@ -15,8 +19,8 @@ def get_dinov2_components():
     global _dinov2_model, _dinov2_transform, _device
     from backend.app.core.config import settings
 
-    if getattr(settings, "LOW_MEMORY_MODE", False):
-        logger.info("LOW_MEMORY_MODE is active: Skipping DINOv2 ViT-S/14 weight loading to fit within RAM constraints.")
+    if torch is None or getattr(settings, "LOW_MEMORY_MODE", False):
+        logger.info("DINOv2 skipped (torch not installed or LOW_MEMORY_MODE active).")
         return None, None, None
 
     if _dinov2_model is None:
@@ -44,12 +48,14 @@ def get_dinov2_components():
     return _dinov2_model, _dinov2_transform, _device
 
 
-def extract_dinov2_features(image: Image.Image) -> Optional[torch.Tensor]:
+def extract_dinov2_features(image: Image.Image) -> Optional[Any]:
     """
     Extract a normalized 384-dimensional DINOv2 embedding from a PIL Image.
     Returns:
         1D torch.Tensor of shape (384,) or None on failure.
     """
+    if torch is None:
+        return None
     model, transform, device = get_dinov2_components()
     if model is None:
         return None

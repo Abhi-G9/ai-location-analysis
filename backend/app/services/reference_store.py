@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
 from PIL import Image
-import torch
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 from backend.app.services.clip_service import get_clip_components
 from backend.app.services.dinov2_service import extract_dinov2_features
@@ -26,6 +30,10 @@ def get_reference_cache(force_reload: bool = False) -> Dict[str, Any]:
     """
     global _reference_cache
     if _reference_cache is not None and not force_reload:
+        return _reference_cache
+
+    if torch is None:
+        _reference_cache = {}
         return _reference_cache
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

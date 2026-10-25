@@ -3,7 +3,11 @@ from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
 from PIL import Image
-import torch
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 from backend.app.services.clip_service import get_clip_components
 from backend.app.services.dinov2_service import extract_dinov2_features
@@ -47,7 +51,7 @@ def rank_candidates(
     clip_model, clip_preprocess, _, clip_cached = get_clip_components()
     device = clip_cached["device"] if clip_cached else "cpu"
     query_clip_feat = None
-    if clip_model is not None:
+    if torch is not None and clip_model is not None:
         try:
             t = clip_preprocess(query_image).unsqueeze(0).to(device)
             with torch.no_grad():
@@ -81,13 +85,13 @@ def rank_candidates(
         if ref_data is not None:
             # 1. CLIP visual cosine similarity
             ref_clip_feat = ref_data.get("clip_embedding")
-            if query_clip_feat is not None and ref_clip_feat is not None:
+            if torch is not None and query_clip_feat is not None and ref_clip_feat is not None:
                 sim = torch.dot(query_clip_feat, ref_clip_feat).item()
                 clip_sim = round(float(sim), 4)
 
             # 2. DINOv2 structural cosine similarity
             ref_dinov2_feat = ref_data.get("dinov2_embedding")
-            if query_dinov2_feat is not None and ref_dinov2_feat is not None:
+            if torch is not None and query_dinov2_feat is not None and ref_dinov2_feat is not None:
                 d_sim = torch.dot(query_dinov2_feat, ref_dinov2_feat).item()
                 dinov2_sim = round(float(d_sim), 4)
 

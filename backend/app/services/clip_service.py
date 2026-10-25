@@ -1,7 +1,10 @@
 import logging
 from typing import Any, Dict, List, Optional
 from PIL import Image
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 
 logger = logging.getLogger("geolens.clip")
 
@@ -35,8 +38,8 @@ def get_clip_components():
     global _model, _preprocess, _tokenizer, _cached_text_embeddings
     from backend.app.core.config import settings
 
-    if getattr(settings, "LOW_MEMORY_MODE", False):
-        logger.info("LOW_MEMORY_MODE is active: Skipping OpenCLIP ViT-B-32 weight loading to fit within RAM constraints.")
+    if torch is None or getattr(settings, "LOW_MEMORY_MODE", False):
+        logger.info("OpenCLIP skipped (torch not installed or LOW_MEMORY_MODE active).")
         return None, None, None, None
 
     if _model is None:
