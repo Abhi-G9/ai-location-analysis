@@ -167,9 +167,12 @@ export interface LocationResult {
   unreliable_reason?: string | null;
   missing_clues: string[];
   place_name?: string | null;
+  area?: string | null;
   city?: string | null;
+  district?: string | null;
   region_state?: string | null;
   country?: string | null;
+  postal_code?: string | null;
   exact_address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -178,12 +181,74 @@ export interface LocationResult {
   confidence_basis: string;
   detection_source?: string | null;
   reference_photo?: ReferencePhotoAttribution | null;
+  online_image_matches?: string[];
+  evidence_sources?: Array<{ title: string; url: string; type: string }>;
   landmarks_and_architecture: string[];
   text_found: string[];
   metadata_clues: string[];
   matching_evidence: string[];
   sources_consulted: string[];
   alternative_locations: LocationCandidateSummary[];
+}
+
+export interface GeminiAnalysisResult {
+  available: boolean;
+  status: string;
+  model?: string;
+  message?: string;
+  is_identifiable?: boolean;
+  confidence_rating?: string;
+  identified_place_name?: string | null;
+  city?: string | null;
+  state_region?: string | null;
+  country?: string | null;
+  reasoning_summary?: string | null;
+  candidate_places?: Array<{
+    name: string;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+    relevance_clue?: string | null;
+  }>;
+  visual_clues?: {
+    landmarks_and_architecture?: string[];
+    text_and_signs?: string[];
+    environment_and_terrain?: string[];
+    distinctive_features?: string[];
+  };
+}
+
+export interface GoogleVisionWebEntity {
+  entity_id?: string;
+  description: string;
+  score: number;
+}
+
+export interface GoogleVisionPageMatch {
+  url: string;
+  page_title?: string;
+  partial_matching_images?: string[];
+}
+
+export interface GoogleVisionLandmark {
+  name: string;
+  score: number;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+export interface GoogleVisionResult {
+  available: boolean;
+  status: string;
+  message?: string;
+  web_entities: GoogleVisionWebEntity[];
+  full_matching_images: string[];
+  partial_matching_images: string[];
+  pages_with_matching_images: GoogleVisionPageMatch[];
+  visually_similar_images: string[];
+  best_guess_labels: string[];
+  landmarks_detected: GoogleVisionLandmark[];
+  candidate_names: string[];
 }
 
 export interface AnalyzeResponse {
@@ -198,6 +263,8 @@ export interface AnalyzeResponse {
   ocr: OCRResult;
   heuristics: VisualHeuristics;
   clip: CLIPAnalysis;
+  gemini?: GeminiAnalysisResult | null;
+  google_vision?: GoogleVisionResult | null;
   retrieval: CandidateRetrievalResult;
   verification: VerificationResult;
   location?: LocationResult | null;

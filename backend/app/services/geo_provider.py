@@ -231,13 +231,25 @@ class NominatimGeoProvider(GeoDataProvider):
                 if resp.status_code == 200:
                     data = resp.json()
                     addr = data.get("address", {})
+                    area = (
+                        addr.get("suburb")
+                        or addr.get("neighbourhood")
+                        or addr.get("residential")
+                        or addr.get("quarter")
+                        or addr.get("city_district")
+                        or ""
+                    )
+                    district = addr.get("state_district") or addr.get("county") or addr.get("city") or ""
                     return {
                         "display_name": data.get("display_name", ""),
                         "road": addr.get("road") or addr.get("pedestrian"),
-                        "suburb": addr.get("suburb") or addr.get("neighbourhood"),
-                        "city": addr.get("city") or addr.get("town") or addr.get("county"),
-                        "state": addr.get("state"),
-                        "country": addr.get("country"),
+                        "suburb": area,
+                        "area": area,
+                        "city": addr.get("city") or addr.get("town") or addr.get("county") or "",
+                        "district": district,
+                        "state": addr.get("state") or "",
+                        "country": addr.get("country") or "",
+                        "postcode": addr.get("postcode") or "",
                         "source": "OpenStreetMap Nominatim",
                     }
         except Exception as exc:
@@ -281,6 +293,14 @@ class NominatimGeoProvider(GeoDataProvider):
                         state = addr.get("state", "")
                         country = addr.get("country", "")
                         name = item.get("name") or item.get("display_name", "").split(",")[0]
+                        area = (
+                            addr.get("suburb")
+                            or addr.get("neighbourhood")
+                            or addr.get("residential")
+                            or addr.get("quarter")
+                            or addr.get("city_district")
+                            or ""
+                        )
                         candidates.append({
                             "id": f"osm-{item.get('osm_id', item.get('place_id'))}",
                             "name": name,
@@ -288,14 +308,16 @@ class NominatimGeoProvider(GeoDataProvider):
                             "latitude": float(item["lat"]),
                             "longitude": float(item["lon"]),
                             "precision": "specific_landmark" if item.get("type") in ["attraction", "tourism", "monument", "historic", "building"] else "city",
+                            "area": area,
                             "city": city,
                             "district": addr.get("state_district") or city,
                             "state": state,
                             "country": country,
+                            "postcode": addr.get("postcode") or "",
                             "description": item.get("display_name", ""),
                             "source": "OpenStreetMap Nominatim",
                             "license": "ODbL",
-                            "matched_clues": [f"OCR Search: {query}"],
+                            "matched_clues": [f"Online Geocoding Search: {query}"],
                             "retrieval_reasons": [f"Recognized place/signage text matching '{query}' via OpenStreetMap"],
                         })
                     if candidates:

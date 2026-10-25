@@ -155,11 +155,14 @@ class LocationResult(BaseModel):
     unreliable_reason: Optional[str] = None
     missing_clues: List[str] = []
 
-    # Most Likely Location
+    # Most Likely Location - Detailed Geographic Hierarchy
     place_name: Optional[str] = None
+    area: Optional[str] = None
     city: Optional[str] = None
+    district: Optional[str] = None
     region_state: Optional[str] = None
     country: Optional[str] = None
+    postal_code: Optional[str] = None
     exact_address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -170,6 +173,10 @@ class LocationResult(BaseModel):
 
     # Reference Image & Attribution
     reference_photo: Optional[Dict[str, Any]] = None
+
+    # Web & Online Image Matching Evidence
+    online_image_matches: List[str] = []
+    evidence_sources: List[Dict[str, str]] = []
 
     # Why This Location?
     landmarks_and_architecture: List[str] = []
@@ -197,6 +204,8 @@ class AnalyzeResponse(BaseModel):
     ocr: OCRResult
     heuristics: VisualHeuristics
     clip: CLIPAnalysis
+    gemini: Optional[Dict[str, Any]] = None
+    google_vision: Optional[Dict[str, Any]] = None
     retrieval: CandidateRetrievalResult
     verification: VerificationResult
     location: Optional[LocationResult] = None

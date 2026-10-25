@@ -18,6 +18,8 @@ def rank_candidates(
     candidates: List[Dict[str, Any]],
     exif_data: Dict[str, Any],
     ocr_data: Dict[str, Any],
+    gemini_data: Optional[Dict[str, Any]] = None,
+    google_vision_data: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Ranks retrieved candidate locations using multi-modal AI visual feature comparison
@@ -27,9 +29,11 @@ def rank_candidates(
     1. DINOv2 Structural Similarity: Dense geometry and landmark texture alignment (weight: 0.50).
     2. CLIP Visual Similarity: High-level visual-semantic scene alignment (weight: 0.35).
     3. OpenCV ORB & RANSAC Inliers: Distinctive 2D keypoint geometric correspondence (weight: 0.15).
-    4. Text & Spatial Agreement Boosts:
+    4. Text, Spatial, Gemini & Web Agreement Boosts:
        - OCR keyword match: +0.25 boost
        - EXIF GPS proximity (< 10 km): +0.30 boost
+       - Gemini visual reasoning match: +0.25 boost
+       - Google Cloud Vision Web Detection match: +0.25 boost
 
     Note on Interpretation:
     - Raw cosine similarity measures mathematical vector alignment (-1.0 to +1.0).
@@ -115,6 +119,19 @@ def rank_candidates(
             elif dist < 25.0:
                 gps_boost = 0.15
 
+        gemini_boost = 0.0
+        if gemini_data and gemini_data.get("available") and gemini_data.get("status") == "success":
+            g_name = (gemini_data.get("identified_place_name") or "").lower()
+            cand_names = [c.get("name", "").lower() for c in gemini_data.get("candidate_places", [])]
+            if candidate_name_lower in g_name or any(candidate_name_lower in cn or cn in candidate_name_lower for cn in cand_names if len(cn) > 3):
+                gemini_boost = 0.25
+
+        vision_boost = 0.0
+        if google_vision_data and google_vision_data.get("available") and google_vision_data.get("status") == "success":
+            v_names = [vn.lower() for vn in google_vision_data.get("candidate_names", [])]
+            if any(candidate_name_lower in vn or vn in candidate_name_lower for vn in v_names if len(vn) > 3):
+                vision_boost = 0.25
+
         # Weighted Visual Score
         # Bound similarities between 0 and 1 for scoring
         bounded_dinov2 = max(0.0, dinov2_sim)
@@ -122,7 +139,7 @@ def rank_candidates(
         bounded_orb = min(1.0, ransac_inliers / 30.0)
 
         visual_score = (0.50 * bounded_dinov2) + (0.35 * bounded_clip) + (0.15 * bounded_orb)
-        composite_score = min(1.0, visual_score + ocr_boost + gps_boost)
+        composite_score = min(1.0, visual_score + ocr_boost + gps_boost + gemini_boost + vision_boost)
 
         # Formulate human-readable ranking evidence breakdown
         evidence_breakdown: List[str] = [
@@ -134,6 +151,10 @@ def rank_candidates(
             evidence_breakdown.append("Supporting Evidence: Recognized candidate name/sign in visible OCR text (+0.25).")
         if gps_boost > 0:
             evidence_breakdown.append(f"Supporting Evidence: Located within {dist:.1f} km of EXIF GPS coordinates (+{gps_boost:.2f}).")
+        if gemini_boost > 0:
+            evidence_breakdown.append("Supporting Evidence: Confirmed by Gemini background visual reasoning (+0.25).")
+        if vision_boost > 0:
+            evidence_breakdown.append("Supporting Evidence: Confirmed by Google Cloud Vision online image detection (+0.25).")
 
         ranked_candidates.append({
             **candidate,

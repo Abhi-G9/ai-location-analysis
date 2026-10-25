@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     ]
 
     # External Provider Credentials & Headers (kept strictly backend-side)
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
+    ENABLE_GOOGLE_VISION: bool = False
+    GOOGLE_VISION_API_KEY: Optional[str] = None
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     MAPILLARY_CLIENT_TOKEN: Optional[str] = None
     WIKIMEDIA_USER_AGENT: str = "AILocationAnalysis/1.0 (educational-geolocation-system; mailto:contact@example.com)"
     DETECTION_CONFIDENCE_THRESHOLD: float = 0.35
@@ -46,7 +51,10 @@ class Settings(BaseSettings):
         return v
 
     model_config = SettingsConfigDict(
-        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"),
+        env_file=[
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), ".env"),
+        ],
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",

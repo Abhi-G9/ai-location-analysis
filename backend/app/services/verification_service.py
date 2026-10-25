@@ -228,10 +228,13 @@ def build_location_result(
     clip_data: Dict[str, Any],
     heuristics_data: Dict[str, Any],
     reverse_geo_data: Optional[Dict[str, Any]] = None,
+    gemini_data: Optional[Dict[str, Any]] = None,
+    google_vision_data: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Constructs the streamlined product-facing location response:
-    - Most Likely Location (place name, city, region, country, exact address, lat/lon, precision, confidence)
+    - Detailed Geographic Hierarchy: Area, City, District, State, Country, Postal Code
+    - Online Image Matches & External Evidence Sources
     - Why This Location? (landmarks/architecture, text found, metadata, matching evidence, sources)
     - Other Possible Locations (real alternative candidates only)
     - If unestablished: “Location could not be reliably determined from the available evidence.”
@@ -254,6 +257,10 @@ def build_location_result(
         sources_consulted = ["Image EXIF Metadata", "RapidOCR Text Reader"]
         if clip_data.get("model_available"):
             sources_consulted.append("OpenCLIP ViT-B-32 Scene Classifier")
+        if gemini_data and gemini_data.get("available"):
+            sources_consulted.append("Google Gemini API (Visual Reasoning)")
+        if google_vision_data and google_vision_data.get("available"):
+            sources_consulted.append("Google Cloud Vision API (Web Detection)")
         sources_consulted.extend(["Local Curated Index", "OpenStreetMap"])
 
         return {
@@ -261,15 +268,22 @@ def build_location_result(
             "unreliable_reason": "Location could not be reliably determined from the available evidence.",
             "missing_clues": missing_clues,
             "place_name": None,
+            "area": None,
             "city": None,
+            "district": None,
             "region_state": None,
             "country": None,
+            "postal_code": None,
             "exact_address": None,
             "latitude": None,
             "longitude": None,
             "geographic_precision": "unknown",
             "confidence_level": "Unverified",
             "confidence_basis": verification_result.get("confidence_basis") or "Insufficient evidence to identify a location without risking a false prediction.",
+            "detection_source": "Unverified",
+            "reference_photo": None,
+            "online_image_matches": [],
+            "evidence_sources": [],
             "landmarks_and_architecture": [
                 f"Scene context: {env['label']}"
                 for env in clip_data.get("top_environments", [])[:2]
@@ -285,18 +299,29 @@ def build_location_result(
 
     # Location IS determined
     place_name = top_candidate.get("name")
+    area = top_candidate.get("area")
     city = top_candidate.get("city")
+    district = top_candidate.get("district")
     region_state = top_candidate.get("state")
     country = top_candidate.get("country", "India")
+    postal_code = top_candidate.get("postcode")
     exact_address = None
 
     if reverse_geo_data:
+        if reverse_geo_data.get("area"):
+            area = reverse_geo_data.get("area")
+        elif reverse_geo_data.get("suburb"):
+            area = reverse_geo_data.get("suburb")
         if reverse_geo_data.get("city"):
             city = reverse_geo_data.get("city")
+        if reverse_geo_data.get("district"):
+            district = reverse_geo_data.get("district")
         if reverse_geo_data.get("state"):
             region_state = reverse_geo_data.get("state")
         if reverse_geo_data.get("country"):
             country = reverse_geo_data.get("country")
+        if reverse_geo_data.get("postcode"):
+            postal_code = reverse_geo_data.get("postcode")
         if verification_result.get("is_verified") and reverse_geo_data.get("display_name"):
             exact_address = reverse_geo_data.get("display_name")
     elif verification_result.get("is_verified") and verification_result.get("precision_level") == "specific_landmark":
@@ -316,7 +341,25 @@ def build_location_result(
     clip_sim = float(top_candidate.get("clip_visual_similarity") or 0.0)
     has_strong_visual = dinov2_sim >= 0.40 or clip_sim >= 0.30
 
-    if gps_near and (ocr_name_match or has_strong_visual):
+    gemini_matched = False
+    if gemini_data and gemini_data.get("available") and gemini_data.get("status") == "success":
+        g_id = (gemini_data.get("identified_place_name") or "").lower()
+        if candidate_name in g_id or g_id in candidate_name:
+            gemini_matched = True
+
+    vision_matched = False
+    if google_vision_data and google_vision_data.get("available") and google_vision_data.get("status") == "success":
+        v_cands = [vc.lower() for vc in google_vision_data.get("candidate_names", [])]
+        if any(candidate_name in vc or vc in candidate_name for vc in v_cands):
+            vision_matched = True
+
+    if gemini_matched and vision_matched:
+        detection_source = "Multi-Modal AI & Web (Gemini + Google Vision)"
+    elif gemini_matched:
+        detection_source = "Gemini Visual Forensics & DINOv2"
+    elif vision_matched:
+        detection_source = "Google Cloud Vision Web Detection"
+    elif gps_near and (ocr_name_match or has_strong_visual):
         detection_source = "Multi-Modal Convergence (GPS + Visual)"
     elif gps_near:
         detection_source = "EXIF GPS Telemetry"
@@ -348,9 +391,17 @@ def build_location_result(
         landmarks_and_architecture.extend(top_candidate["visual_features"][:3])
     for env in clip_data.get("top_environments", [])[:1]:
         landmarks_and_architecture.append(f"Visual environment: {env['label']}")
+    if gemini_data and gemini_data.get("visual_clues"):
+        g_lms = gemini_data["visual_clues"].get("landmarks_and_architecture", [])
+        if g_lms:
+            landmarks_and_architecture.extend(g_lms[:2])
 
     # Text found
     text_found = [line["text"] for line in ocr_data.get("detected_lines", [])[:5]]
+    if gemini_data and gemini_data.get("visual_clues", {}).get("text_and_signs"):
+        for g_txt in gemini_data["visual_clues"]["text_and_signs"][:3]:
+            if g_txt not in text_found:
+                text_found.append(f"Gemini detected: {g_txt}")
     if not text_found:
         text_found = ["No legible text or signage detected in photograph."]
 
@@ -375,10 +426,44 @@ def build_location_result(
     elif not matching_evidence:
         matching_evidence.append(f"Visual alignment with {place_name} reference features.")
 
+    if gemini_matched and gemini_data.get("reasoning_summary"):
+        matching_evidence.append(f"Gemini analysis: {gemini_data['reasoning_summary']}")
+    if vision_matched and google_vision_data.get("best_guess_labels"):
+        matching_evidence.append(f"Google Vision web match: {', '.join(google_vision_data['best_guess_labels'])}")
+
+    # Online Image Matches & External Evidence Sources
+    online_image_matches: List[str] = []
+    evidence_sources: List[Dict[str, str]] = []
+
+    if ref_photo:
+        if ref_photo.get("image_url"):
+            online_image_matches.append(ref_photo["image_url"])
+        if ref_photo.get("source_page"):
+            evidence_sources.append({
+                "title": f"Reference: {ref_photo.get('title', 'Landmark Photo')}",
+                "url": ref_photo["source_page"],
+                "type": "archive",
+            })
+
+    if google_vision_data and google_vision_data.get("available"):
+        for img_url in google_vision_data.get("full_matching_images", [])[:4]:
+            if img_url not in online_image_matches:
+                online_image_matches.append(img_url)
+        for page in google_vision_data.get("pages_with_matching_images", [])[:4]:
+            evidence_sources.append({
+                "title": page.get("page_title") or "Online Image Match Page",
+                "url": page.get("url", ""),
+                "type": "webpage",
+            })
+
     # Sources consulted
     sources_consulted = [top_candidate.get("source", "OpenStreetMap")]
     if ref_photo and ref_photo.get("source"):
         sources_consulted.insert(0, f"{ref_photo['source']} Reference Photo Archive")
+    if gemini_data and gemini_data.get("available"):
+        sources_consulted.append("Google Gemini API (Visual Reasoning)")
+    if google_vision_data and google_vision_data.get("available"):
+        sources_consulted.append("Google Cloud Vision API (Web Detection)")
     if ocr_data.get("total_lines_found", 0) > 0:
         sources_consulted.append("RapidOCR Text Reader")
     if clip_data.get("model_available"):
@@ -408,9 +493,12 @@ def build_location_result(
         "unreliable_reason": None,
         "missing_clues": [],
         "place_name": place_name,
+        "area": area,
         "city": city,
+        "district": district,
         "region_state": region_state,
         "country": country,
+        "postal_code": postal_code,
         "exact_address": exact_address,
         "latitude": round(top_candidate["latitude"], 5) if top_candidate.get("latitude") is not None else None,
         "longitude": round(top_candidate["longitude"], 5) if top_candidate.get("longitude") is not None else None,
@@ -419,6 +507,8 @@ def build_location_result(
         "confidence_basis": verification_result.get("confidence_basis", ""),
         "detection_source": detection_source,
         "reference_photo": ref_photo,
+        "online_image_matches": online_image_matches[:6],
+        "evidence_sources": evidence_sources[:6],
         "landmarks_and_architecture": landmarks_and_architecture,
         "text_found": text_found,
         "metadata_clues": metadata_clues,

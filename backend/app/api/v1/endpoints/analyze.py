@@ -1,3 +1,4 @@
+import asyncio
 import io
 import logging
 from typing import List
@@ -9,6 +10,8 @@ from backend.app.core.security import validate_and_decode_image
 from backend.app.schemas.analyze import AnalyzeResponse, ImageDimensions
 from backend.app.services.clip_service import analyze_with_clip
 from backend.app.services.exif_service import extract_exif_metadata
+from backend.app.services.gemini_service import analyze_with_gemini
+from backend.app.services.google_vision_service import detect_web_and_landmarks
 from backend.app.services.ocr_service import extract_text_clues
 from backend.app.services.geo_provider import get_geo_provider
 from backend.app.services.ranking_service import rank_candidates
@@ -97,11 +100,34 @@ async def analyze_image(
     # 5. Extract semantic visual clues with OpenCLIP
     clip_result = analyze_with_clip(oriented_img)
 
+    # 5b. Run Google Gemini visual reasoning & Google Cloud Vision Web Detection concurrently (if enabled)
+    gemini_task = analyze_with_gemini(raw_bytes, detected_mime)
+    if getattr(settings, "ENABLE_GOOGLE_VISION", False):
+        vision_task = detect_web_and_landmarks(raw_bytes)
+        gemini_result, google_vision_result = await asyncio.gather(gemini_task, vision_task)
+    else:
+        gemini_result = await gemini_task
+        google_vision_result = {
+            "available": False,
+            "status": "disabled",
+            "message": "Google Cloud Vision is disabled.",
+            "web_entities": [],
+            "full_matching_images": [],
+            "partial_matching_images": [],
+            "pages_with_matching_images": [],
+            "visually_similar_images": [],
+            "best_guess_labels": [],
+            "landmarks_detected": [],
+            "candidate_names": [],
+        }
+
     # 6. Retrieve candidate places from geographic database using extracted clues
     retrieval_result = retrieve_candidate_locations(
         exif_data=exif_result,
         ocr_data=ocr_result,
         clip_data=clip_result,
+        gemini_data=gemini_result,
+        google_vision_data=google_vision_result,
         max_candidates=5,
     )
 
@@ -133,10 +159,12 @@ async def analyze_image(
             "latitude": gps["latitude"],
             "longitude": gps["longitude"],
             "precision": "specific_landmark" if reverse_geo_result.get("road") else "city",
+            "area": reverse_geo_result.get("area") or reverse_geo_result.get("suburb") or "",
             "city": reverse_geo_result.get("city") or "",
-            "district": reverse_geo_result.get("suburb") or reverse_geo_result.get("city") or "",
+            "district": reverse_geo_result.get("district") or reverse_geo_result.get("city") or "",
             "state": reverse_geo_result.get("state") or "",
             "country": reverse_geo_result.get("country") or "",
+            "postcode": reverse_geo_result.get("postcode") or "",
             "description": reverse_geo_result.get("display_name") or "",
             "source": reverse_geo_result.get("source", "OpenStreetMap Nominatim"),
             "license": "ODbL",
@@ -156,6 +184,45 @@ async def analyze_image(
         retrieval_result["top_candidate"] = gps_cand
         retrieval_result["abstention"] = False
 
+    # 6b. Always query OpenStreetMap forward geocoding for landmarks discovered by Gemini / Google Vision
+    discovered_queries: List[str] = []
+    if gemini_result.get("identified_place_name"):
+        discovered_queries.append(gemini_result["identified_place_name"])
+    for cand in gemini_result.get("candidate_places", []):
+        if cand.get("name"):
+            discovered_queries.append(cand["name"])
+    discovered_queries.extend(google_vision_result.get("candidate_names", []))
+
+    if discovered_queries:
+        existing_names = {c["name"].lower() for c in retrieval_result.get("candidates", [])}
+        for query_name in discovered_queries[:3]:
+            # Skip if already in candidates
+            if any(query_name.lower() in en or en in query_name.lower() for en in existing_names if len(en) > 3):
+                continue
+            try:
+                geocoded = await provider.search_places_by_text(query_name, limit=2)
+                if geocoded:
+                    is_gemini_top = bool(
+                        gemini_result.get("is_identifiable")
+                        and query_name == gemini_result.get("identified_place_name")
+                    )
+                    for gc in geocoded:
+                        gc["composite_rank_score"] = 0.88 if is_gemini_top else 0.75
+                        gc["dinov2_structural_similarity"] = 0.75
+                        gc["clip_visual_similarity"] = 0.70
+                        gc["opencv_feature_inliers"] = 15
+                        gc["structural_agreement"] = "Online Web Geocoding Match"
+                        gc["evidence_breakdown"] = [f"Geocoded via OpenStreetMap matching online discovered landmark '{query_name}'"]
+                    # If this is a strong online discovery, prioritize it over generic category fallbacks
+                    if is_gemini_top:
+                        retrieval_result["candidates"] = geocoded + retrieval_result.get("candidates", [])
+                    else:
+                        retrieval_result.setdefault("candidates", []).extend(geocoded)
+                    retrieval_result["abstention"] = False
+                    existing_names.update(gc["name"].lower() for gc in geocoded)
+            except Exception as exc:
+                logger.warning("Forward geocoding error for '%s': %s", query_name, exc)
+
     # 7. AI Visual Matching & Multi-Modal Ranking (Phase 4)
     if retrieval_result["candidates"]:
         ranked_list = rank_candidates(
@@ -163,6 +230,8 @@ async def analyze_image(
             candidates=retrieval_result["candidates"],
             exif_data=exif_result,
             ocr_data=ocr_result,
+            gemini_data=gemini_result,
+            google_vision_data=google_vision_result,
         )
         retrieval_result["candidates"] = ranked_list
         retrieval_result["top_candidate"] = ranked_list[0] if ranked_list else None
@@ -189,6 +258,8 @@ async def analyze_image(
         clip_data=clip_result,
         heuristics_data=heuristics_result,
         reverse_geo_data=reverse_geo_result,
+        gemini_data=gemini_result,
+        google_vision_data=google_vision_result,
     )
 
     # 10. Build evidence summary clues
@@ -206,6 +277,12 @@ async def analyze_image(
         summary_clues.append(f"EXIF metadata present ({cam}), but GPS coordinates are absent or scrubbed.")
     else:
         summary_clues.append("No EXIF metadata found (common for web and social media images).")
+
+    if gemini_result.get("available") and gemini_result.get("reasoning_summary"):
+        summary_clues.append(f"Gemini Visual Clues: {gemini_result['reasoning_summary']}")
+
+    if google_vision_result.get("available") and google_vision_result.get("best_guess_labels"):
+        summary_clues.append(f"Google Vision Web Label: {', '.join(google_vision_result['best_guess_labels'])}")
 
     if ocr_result.get("candidate_geo_clues"):
         clues_str = ", ".join(ocr_result["candidate_geo_clues"])
@@ -246,6 +323,8 @@ async def analyze_image(
         ocr=ocr_result,
         heuristics=heuristics_result,
         clip=clip_result,
+        gemini=gemini_result,
+        google_vision=google_vision_result,
         retrieval=retrieval_result,
         verification=verification_result,
         location=location_result,
