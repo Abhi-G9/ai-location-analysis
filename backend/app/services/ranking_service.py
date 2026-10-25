@@ -138,15 +138,29 @@ def rank_candidates(
         bounded_clip = max(0.0, clip_sim)
         bounded_orb = min(1.0, ransac_inliers / 30.0)
 
-        visual_score = (0.50 * bounded_dinov2) + (0.35 * bounded_clip) + (0.15 * bounded_orb)
+        # Dynamically normalize weights across active visual feature extractors
+        active_weights = 0.0
+        weighted_visual_sum = 0.0
+        if query_dinov2_feat is not None:
+            active_weights += 0.50
+            weighted_visual_sum += 0.50 * bounded_dinov2
+        if query_clip_feat is not None:
+            active_weights += 0.35
+            weighted_visual_sum += 0.35 * bounded_clip
+        # OpenCV ORB is always active and lightweight
+        active_weights += 0.15
+        weighted_visual_sum += 0.15 * bounded_orb
+
+        visual_score = (weighted_visual_sum / active_weights) if active_weights > 0 else 0.0
         composite_score = min(1.0, visual_score + ocr_boost + gps_boost + gemini_boost + vision_boost)
 
         # Formulate human-readable ranking evidence breakdown
-        evidence_breakdown: List[str] = [
-            f"DINOv2 structural similarity: {dinov2_sim:.3f}",
-            f"CLIP visual-semantic similarity: {clip_sim:.3f}",
-            f"OpenCV geometric keypoint inliers: {ransac_inliers} ({structural_agreement})",
-        ]
+        evidence_breakdown: List[str] = []
+        if query_dinov2_feat is not None:
+            evidence_breakdown.append(f"DINOv2 structural similarity: {dinov2_sim:.3f}")
+        if query_clip_feat is not None:
+            evidence_breakdown.append(f"CLIP visual-semantic similarity: {clip_sim:.3f}")
+        evidence_breakdown.append(f"OpenCV geometric keypoint inliers: {ransac_inliers} ({structural_agreement})")
         if ocr_boost > 0:
             evidence_breakdown.append("Supporting Evidence: Recognized candidate name/sign in visible OCR text (+0.25).")
         if gps_boost > 0:
@@ -169,9 +183,9 @@ def rank_candidates(
             "reference_photo": ref_data.get("reference_photo") if ref_data else None,
         })
 
-    # Sort descending by composite score, then by DINOv2 similarity
+    # Sort descending by composite score, then by DINOv2 similarity, then by OpenCV inliers
     ranked_candidates.sort(
-        key=lambda x: (x["composite_rank_score"], x["dinov2_structural_similarity"]),
+        key=lambda x: (x["composite_rank_score"], x["dinov2_structural_similarity"], x["opencv_feature_inliers"]),
         reverse=True,
     )
 

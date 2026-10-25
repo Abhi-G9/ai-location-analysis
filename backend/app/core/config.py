@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     MAPILLARY_CLIENT_TOKEN: Optional[str] = None
     WIKIMEDIA_USER_AGENT: str = "AILocationAnalysis/1.0 (educational-geolocation-system; mailto:contact@example.com)"
     DETECTION_CONFIDENCE_THRESHOLD: float = 0.35
+    LOW_MEMORY_MODE: bool = (
+        os.environ.get("LOW_MEMORY_MODE", "").lower() in ("true", "1")
+        or (os.environ.get("RENDER") == "true" and os.environ.get("LOW_MEMORY_MODE", "").lower() != "false")
+    )
 
     @field_validator("ALLOWED_ORIGINS", "ALLOWED_IMAGE_TYPES", mode="before")
     @classmethod

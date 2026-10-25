@@ -2,7 +2,6 @@ import logging
 from typing import Optional, Tuple
 from PIL import Image
 import torch
-import timm
 
 logger = logging.getLogger("geolens.dinov2")
 
@@ -14,8 +13,16 @@ _device = None
 def get_dinov2_components():
     """Lazy singleton loader for the DINOv2 visual backbone."""
     global _dinov2_model, _dinov2_transform, _device
+    from backend.app.core.config import settings
+
+    if getattr(settings, "LOW_MEMORY_MODE", False):
+        logger.info("LOW_MEMORY_MODE is active: Skipping DINOv2 ViT-S/14 weight loading to fit within RAM constraints.")
+        return None, None, None
+
     if _dinov2_model is None:
         try:
+            import timm
+
             device = "cuda" if torch.cuda.is_available() else "cpu"
             model = timm.create_model("vit_small_patch14_dinov2", pretrained=True, num_classes=0)
             model.to(device)

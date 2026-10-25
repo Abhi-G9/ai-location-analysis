@@ -125,9 +125,9 @@ def verify_geolocation_prediction(
         estimated_error_km = 0.5
         error_desc = "Landmark verified by text and visual structure; estimated error radius ±500 meters."
 
-    elif ransac_inliers >= 15 and dinov2_sim >= 0.65:
+    elif (ransac_inliers >= 15 and dinov2_sim >= 0.65) or (ransac_inliers >= 20 and composite_score >= 0.50):
         confidence_category = "Verified Match"
-        confidence_basis = f"High geometric visual correspondence: {ransac_inliers} RANSAC keypoint inliers and strong DINOv2 structural similarity ({dinov2_sim:.2f})."
+        confidence_basis = f"High geometric visual correspondence: {ransac_inliers} RANSAC keypoint inliers with strong multi-modal alignment ({composite_score:.2f})."
         is_verified = True
         precision_level = "specific_landmark"
         estimated_error_km = 0.75
@@ -135,7 +135,7 @@ def verify_geolocation_prediction(
 
     elif composite_score >= 0.50 and score_margin >= 0.04:
         confidence_category = "Plausible Candidate"
-        confidence_basis = f"Moderate multi-modal alignment (composite: {composite_score:.2f}, DINOv2: {dinov2_sim:.2f}, CLIP: {clip_sim:.2f}) with distinct lead over alternatives."
+        confidence_basis = f"Moderate multi-modal alignment (composite: {composite_score:.2f}) with distinct lead over alternatives."
         is_verified = False
         precision_level = "neighborhood"
         estimated_error_km = 3.5

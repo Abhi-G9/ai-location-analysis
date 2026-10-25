@@ -33,6 +33,12 @@ SETTING_CANDIDATES = [
 def get_clip_components():
     """Lazy singleton loader for the OpenCLIP model and pre-computed text embeddings."""
     global _model, _preprocess, _tokenizer, _cached_text_embeddings
+    from backend.app.core.config import settings
+
+    if getattr(settings, "LOW_MEMORY_MODE", False):
+        logger.info("LOW_MEMORY_MODE is active: Skipping OpenCLIP ViT-B-32 weight loading to fit within RAM constraints.")
+        return None, None, None, None
+
     if _model is None:
         try:
             import open_clip
