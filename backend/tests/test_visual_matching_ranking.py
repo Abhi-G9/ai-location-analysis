@@ -1,5 +1,6 @@
 import io
 import os
+from unittest.mock import patch, AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -89,15 +90,26 @@ def test_deterministic_ranking_pipeline(client: TestClient):
     img.save(buf, format="JPEG")
     bytes_data = buf.getvalue()
 
-    files1 = {"file": ("barrage_run1.jpg", bytes_data, "image/jpeg")}
-    r1 = client.post("/api/v1/analyze", files=files1)
-    assert r1.status_code == 200
-    data1 = r1.json()
+    fake_gemini = {
+        "available": True,
+        "status": "success",
+        "model": "gemini-3.5-flash-lite",
+        "is_identifiable": False,
+        "identified_place_name": None,
+        "candidate_places": [],
+        "reasoning_summary": "Test deterministic ranking scene",
+    }
 
-    files2 = {"file": ("barrage_run2.jpg", bytes_data, "image/jpeg")}
-    r2 = client.post("/api/v1/analyze", files=files2)
-    assert r2.status_code == 200
-    data2 = r2.json()
+    with patch("backend.app.api.v1.endpoints.analyze.analyze_with_gemini", new_callable=AsyncMock, return_value=fake_gemini):
+        files1 = {"file": ("barrage_run1.jpg", bytes_data, "image/jpeg")}
+        r1 = client.post("/api/v1/analyze", files=files1)
+        assert r1.status_code == 200
+        data1 = r1.json()
+
+        files2 = {"file": ("barrage_run2.jpg", bytes_data, "image/jpeg")}
+        r2 = client.post("/api/v1/analyze", files=files2)
+        assert r2.status_code == 200
+        data2 = r2.json()
 
     cand1 = data1["retrieval"]["candidates"]
     cand2 = data2["retrieval"]["candidates"]
