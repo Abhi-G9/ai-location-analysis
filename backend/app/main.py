@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.app.api.v1.router import api_router
+from backend.app.api.v1.endpoints import analyze, health
 from backend.app.core.config import settings
 
 # Configure structured logging
@@ -27,7 +28,7 @@ app = FastAPI(
 # CORS middleware for frontend-backend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=list(settings.ALLOWED_ORIGINS) if isinstance(settings.ALLOWED_ORIGINS, (list, tuple)) else [settings.ALLOWED_ORIGINS],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -35,6 +36,10 @@ app.add_middleware(
 
 # Mount versioned API routes
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# Convenience root aliases so requests to /analyze and /health work at root as well as /api/v1/*
+app.include_router(analyze.router, tags=["Root Aliases"], include_in_schema=False)
+app.include_router(health.router, tags=["Root Aliases"], include_in_schema=False)
 
 
 @app.get("/", tags=["Root"])
