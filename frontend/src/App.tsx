@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
-import { Header } from './components/Header';
-import { LandingHero, HowItWorksSection, CapabilitiesSection, FAQSection } from './components/LandingSections';
+import { Header, NavTab } from './components/Header';
+import {
+  LandingHero,
+  HowItWorksPage,
+  CapabilitiesPage,
+  FAQPage,
+  AboutPage,
+} from './components/LandingSections';
 import { ImageUploader } from './components/ImageUploader';
 import { LocationResultView } from './components/LocationResultView';
+import { FeedbackCard } from './components/FeedbackCard';
 import { AnalyzeResponse } from './types';
+import { Mail, Compass } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResponse | null>(null);
 
   const handleIntakeSuccess = (result: AnalyzeResponse) => {
     setAnalysisResult(result);
     // Smooth scroll down to the result view
     setTimeout(() => {
-      window.scrollTo({ top: 380, behavior: 'smooth' });
+      window.scrollTo({ top: 400, behavior: 'smooth' });
     }, 100);
   };
 
@@ -21,65 +30,150 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleGoToScanner = () => {
+    setActiveTab('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
-      {/* Modern Top Header / Navbar */}
-      <Header onReset={handleReset} hasResult={!!analysisResult} />
+    <div className="min-h-screen bg-slate-100/80 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
+      {/* Top Navbar with Tab Switching (No full page refresh) */}
+      <Header
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onReset={handleReset}
+        hasResult={!!analysisResult}
+      />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-10">
-        {/* Landing Hero (shown at all times, provides strong context) */}
-        {!analysisResult && <LandingHero />}
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8">
+        {/* VIEW 1: HOME / SCANNER */}
+        {activeTab === 'home' && (
+          <div className="space-y-8 animate-fadeIn">
+            {/* Hero Banner (Always informative) */}
+            <LandingHero />
 
-        {/* Upload Zone */}
-        <section id="uploader" className="w-full">
-          <ImageUploader
-            onSuccess={handleIntakeSuccess}
-            onReset={handleReset}
-          />
-        </section>
+            {/* Uploader Card */}
+            <section id="uploader" className="w-full">
+              <ImageUploader
+                onSuccess={handleIntakeSuccess}
+                onReset={handleReset}
+              />
+            </section>
 
-        {/* Results Section */}
-        {analysisResult && (
-          <section id="results" className="w-full pt-2">
-            <LocationResultView result={analysisResult} onReset={handleReset} />
-          </section>
+            {/* Results Section (When image is analyzed) */}
+            {analysisResult && (
+              <section id="results" className="w-full pt-2">
+                <LocationResultView result={analysisResult} onReset={handleReset} />
+              </section>
+            )}
+
+            {/* Community Reviews & Ratings (Shown below uploader) */}
+            {!analysisResult && (
+              <section className="w-full pt-2">
+                <FeedbackCard placeName={null} coordinates={null} />
+              </section>
+            )}
+          </div>
         )}
 
-        {/* Informative Landing Content (shown when no result is currently active) */}
-        {!analysisResult && (
-          <div className="space-y-12 pt-4">
-            <HowItWorksSection />
-            <CapabilitiesSection />
-            <FAQSection />
-          </div>
+        {/* VIEW 2: HOW IT WORKS (Dedicated Page) */}
+        {activeTab === 'how-it-works' && (
+          <HowItWorksPage onGoToScanner={handleGoToScanner} />
+        )}
+
+        {/* VIEW 3: CAPABILITIES (Dedicated Page) */}
+        {activeTab === 'capabilities' && (
+          <CapabilitiesPage onGoToScanner={handleGoToScanner} />
+        )}
+
+        {/* VIEW 4: FAQ (Dedicated Page) */}
+        {activeTab === 'faq' && (
+          <FAQPage onGoToScanner={handleGoToScanner} />
+        )}
+
+        {/* VIEW 5: ABOUT & CONTACT (Dedicated Page) */}
+        {activeTab === 'about' && (
+          <AboutPage onGoToScanner={handleGoToScanner} />
         )}
       </main>
 
       {/* Polished Modern Footer */}
-      <footer className="border-t border-slate-200/80 bg-white/90 backdrop-blur-xs py-8 text-center text-xs text-slate-500 mt-12">
-        <div className="max-w-4xl mx-auto px-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-center gap-6 text-xs font-medium text-slate-600">
-            <a href="#how-it-works" className="hover:text-teal-600 transition-colors">
+      <footer className="border-t border-slate-200/90 bg-white/95 backdrop-blur-xs py-10 text-center text-xs text-slate-500 mt-12 shadow-xs">
+        <div className="max-w-4xl mx-auto px-4 space-y-4">
+          {/* Footer Navigation */}
+          <div className="flex flex-wrap items-center justify-center gap-6 text-xs font-semibold text-slate-600">
+            <button
+              onClick={() => {
+                setActiveTab('home');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-teal-600 transition-colors"
+            >
+              Scanner Home
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('how-it-works');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-teal-600 transition-colors"
+            >
               How It Works
-            </a>
-            <a href="#capabilities" className="hover:text-teal-600 transition-colors">
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('capabilities');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-teal-600 transition-colors"
+            >
               Capabilities
-            </a>
-            <a href="#faq" className="hover:text-teal-600 transition-colors">
-              FAQ
-            </a>
-            <button onClick={handleReset} className="hover:text-teal-600 transition-colors">
-              Upload Photo
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('faq');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-teal-600 transition-colors"
+            >
+              Q&amp;A
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('about');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-teal-600 transition-colors"
+            >
+              About &amp; Contact
             </button>
           </div>
 
-          <p className="font-semibold text-slate-700">
-            GeoLens AI &bull; Photographic Geolocation &amp; Landmark Recognition
-          </p>
+          {/* Contact Email Banner */}
+          <div className="pt-2 flex items-center justify-center space-x-2 text-slate-600">
+            <Mail className="w-4 h-4 text-teal-600" />
+            <span>Support &amp; Contact:</span>
+            <a
+              href="mailto:abhi.sys.01@gmail.com"
+              className="font-mono font-bold text-teal-700 hover:text-teal-800 underline transition-colors"
+            >
+              abhi.sys.01@gmail.com
+            </a>
+          </div>
 
-          <p className="text-[11px] text-slate-400 max-w-md mx-auto">
-            Powered by Google Gemini Multimodal AI, RapidOCR, and OpenStreetMap. All images are processed securely in memory without persistent storage.
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-center space-x-2">
+            <Compass className="w-4 h-4 text-teal-600" />
+            <p className="font-bold text-slate-800 text-xs">
+              AI Location Detect PRO &bull; Multi-Modal Photographic Geolocation
+            </p>
+          </div>
+
+          <p className="text-[11px] text-slate-400 max-w-lg mx-auto">
+            Images are evaluated securely in memory during inspection. Optical Character Recognition (OCR), visual neural models, and spatial data are used to provide responsible geolocation.
           </p>
         </div>
       </footer>
