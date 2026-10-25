@@ -66,3 +66,28 @@ def test_root_analyze_alias_options_cors(client: TestClient):
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "https://ai-location-analysis.vercel.app"
+
+
+def test_cors_headers_on_error_response(client: TestClient):
+    """Verify that error responses (400, 422, 500) preserve CORS headers so the browser sees the error status."""
+    # POST to /api/v1/analyze without multipart file triggers 422 validation error
+    response = client.post(
+        "/api/v1/analyze",
+        headers={
+            "Origin": "https://ai-location-analysis.vercel.app",
+        },
+    )
+    assert response.headers.get("access-control-allow-origin") == "https://ai-location-analysis.vercel.app"
+
+
+def test_cors_headers_on_health_get_response(client: TestClient):
+    """Verify that GET /api/v1/health from production Vercel origin returns 200 with CORS headers."""
+    response = client.get(
+        "/api/v1/health",
+        headers={
+            "Origin": "https://ai-location-analysis.vercel.app",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://ai-location-analysis.vercel.app"
+

@@ -100,9 +100,12 @@ def verify_geolocation_prediction(
     abstention = False
     abstention_reason: Optional[str] = None
 
-    if composite_score < 0.35 and not (gps_near or ocr_name_match):
+    from backend.app.core.config import settings
+    threshold = getattr(settings, "DETECTION_CONFIDENCE_THRESHOLD", 0.28)
+
+    if composite_score < threshold and not (gps_near or ocr_name_match):
         confidence_category = "Insufficient Evidence"
-        confidence_basis = f"Top candidate composite score ({composite_score:.2f}) falls below minimum detection threshold (0.35)."
+        confidence_basis = f"Top candidate composite score ({composite_score:.2f}) falls below minimum detection threshold ({threshold:.2f})."
         precision_level = "unknown"
         estimated_error_km = None
         error_desc = "Confidence is insufficient to estimate geographical bounds."

@@ -125,6 +125,11 @@ def rank_candidates(
             cand_names = [c.get("name", "").lower() for c in gemini_data.get("candidate_places", [])]
             if candidate_name_lower in g_name or any(candidate_name_lower in cn or cn in candidate_name_lower for cn in cand_names if len(cn) > 3):
                 gemini_boost = 0.25
+            else:
+                reasoning = (gemini_data.get("reasoning_summary") or "").lower()
+                cand_kws = [kw.lower() for kw in candidate.get("keywords", [])]
+                if any(kw in reasoning for kw in cand_kws if len(kw) > 3):
+                    gemini_boost = 0.15
 
         vision_boost = 0.0
         if google_vision_data and google_vision_data.get("available") and google_vision_data.get("status") == "success":
