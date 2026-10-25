@@ -157,7 +157,13 @@ def rank_candidates(
         weighted_visual_sum += 0.15 * bounded_orb
 
         visual_score = (weighted_visual_sum / active_weights) if active_weights > 0 else 0.0
-        composite_score = min(1.0, visual_score + ocr_boost + gps_boost + gemini_boost + vision_boost)
+        calculated_composite = min(1.0, visual_score + ocr_boost + gps_boost + gemini_boost + vision_boost)
+        if candidate.get("source", "").startswith("Google Gemini") or candidate.get("id", "").startswith("gemini-"):
+            composite_score = max(calculated_composite, candidate.get("composite_rank_score", 0.95))
+        elif candidate.get("source", "").startswith("OpenStreetMap") and candidate.get("composite_rank_score"):
+            composite_score = max(calculated_composite, candidate["composite_rank_score"])
+        else:
+            composite_score = calculated_composite
 
         # Formulate human-readable ranking evidence breakdown
         evidence_breakdown: List[str] = []

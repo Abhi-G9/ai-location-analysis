@@ -19,43 +19,44 @@ SUPPORTED_MODELS = [
     "gemini-3.8-flash",
 ]
 
-SYSTEM_PROMPT = """You are an expert forensic geolocation and computer vision investigator.
-Analyze the uploaded photograph carefully, inspecting both the primary subject and the subtle background:
-1. Architectural style, spires, domes, towers, bridges, monuments, dam gates, structural materials.
-2. Signage, shop names, billboards, road markers, street numbers, vehicle license plates.
-3. Language, alphabet/script (e.g., Hindi, English, Arabic, regional scripts).
-4. Natural terrain, bodies of water, riverbanks, vegetation, mountains, climate indicators.
-5. Urban layout, road infrastructure, paving patterns, public park features.
+SYSTEM_PROMPT = """You are an expert AI geolocation and computer vision investigator.
+Your goal is to detect the real-world geographic location shown in the photograph by analyzing:
+1. Primary subject & background architecture (monuments, towers, bridges, domes, gates, temples, palaces, riverfronts, gardens, public parks, building facades, facades).
+2. Visible signage, shop names, billboards, road markers, street numbers, vehicle license plates, script/language (Hindi, English, regional scripts).
+3. Natural terrain, bodies of water, riverbanks, ghats, cliffs, ravines, trees/vegetation, climate indicators.
+4. Urban infrastructure, paving patterns, public park features, boundary designs.
 
-STRICT TRUTHFULNESS & HONESTY RULES:
-- Never fabricate or guess an exact address, coordinates, or city if the evidence is insufficient.
-- If you recognize a specific landmark with high confidence, state its exact name and location.
-- If you only recognize a broad regional or architectural style (e.g. "North Indian temple architecture" or "Typical urban riverfront"), state that clearly without falsely claiming a specific place.
-- If the image is an indoor scene, a generic object, abstract graphics, food, or has no identifiable geographic anchors, state that the location cannot be reliably determined.
+ANALYSIS RULES:
+- Identify the most specific geographic location possible from the photograph:
+  - If a specific landmark/monument is visible (e.g., Seven Wonders Park, Chambal Riverfront, Kota Barrage, Garh Palace, India Gate, Hawa Mahal, etc.): provide its exact name in "identified_place_name", its city in "city", state in "state_region", and country in "country". Set "is_identifiable": true.
+  - If a specific landmark is not 100% certain but the city, district, or region is recognizable from architecture, terrain, or signage: provide the prominent area/neighborhood in "identified_place_name", the city in "city", state in "state_region", and set "is_identifiable": true.
+  - Always list 1 to 4 plausible candidate places in "candidate_places" with their name, city, and why they match.
+  - In "reasoning_summary", provide a clear, user-friendly 1-2 sentence explanation of the specific visual clues, architectural elements, or background details that led to this location detection.
+  - Only set "is_identifiable": false if the image has zero geographic clues (e.g. pure blank screenshot, close-up of a cup/food, or abstract pattern).
 
 Respond with ONLY valid JSON (no markdown formatting, no code fences, no extra text) matching this exact schema:
 {
   "is_identifiable": true,
   "confidence_rating": "Verified Match" | "Plausible Candidate" | "Low Confidence" | "Insufficient Evidence",
-  "identified_place_name": "Name of specific place" or null,
-  "city": "City name" or null,
-  "state_region": "State/Region" or null,
-  "country": "Country name" or null,
-  "reasoning_summary": "Concise 1-2 sentence explanation of the visual rationale",
+  "identified_place_name": "Name of landmark or prominent location",
+  "city": "City name",
+  "state_region": "State/Region",
+  "country": "Country name (e.g. India)",
+  "reasoning_summary": "Explanation of visual clues and background evidence",
   "candidate_places": [
     {
       "name": "Candidate place name",
       "city": "City",
       "state": "State",
       "country": "Country",
-      "relevance_clue": "Why this candidate was retrieved"
+      "relevance_clue": "Why this candidate matches"
     }
   ],
   "visual_clues": {
-    "landmarks_and_architecture": ["clue 1", "clue 2"],
-    "text_and_signs": ["text detected 1"],
-    "environment_and_terrain": ["terrain clue 1"],
-    "distinctive_features": ["feature 1"]
+    "landmarks_and_architecture": ["clue 1"],
+    "text_and_signs": ["text detected"],
+    "environment_and_terrain": ["terrain clue"],
+    "distinctive_features": ["feature"]
   }
 }
 """
@@ -321,6 +322,24 @@ async def _call_gemini_rest(
             parsed["available"] = True
             parsed["status"] = "success"
             parsed["model"] = model
+
+            # Intelligent normalization: ensure Gemini detection always produces an actionable location
+            if not parsed.get("identified_place_name") and parsed.get("candidate_places"):
+                for cp in parsed["candidate_places"]:
+                    if cp.get("name"):
+                        parsed["identified_place_name"] = cp["name"]
+                        if not parsed.get("city") and cp.get("city"):
+                            parsed["city"] = cp["city"]
+                        if not parsed.get("state_region") and cp.get("state"):
+                            parsed["state_region"] = cp["state"]
+                        parsed["is_identifiable"] = True
+                        break
+
+            if not parsed.get("identified_place_name") and parsed.get("city"):
+                city_name = parsed["city"]
+                parsed["identified_place_name"] = f"{city_name} City / Prominent Area"
+                parsed["is_identifiable"] = True
+
             return parsed
 
     except json.JSONDecodeError as jde:
