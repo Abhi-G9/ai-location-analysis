@@ -18,9 +18,21 @@ def extract_orb_descriptors(image: Image.Image) -> Tuple[Optional[List[cv2.KeyPo
             rgb_img = image.convert("RGB")
         else:
             rgb_img = image
-        img_np = np.array(rgb_img)
+
+        # Keep resolution under 800px for keypoint matching to conserve RAM and speed up RANSAC
+        if rgb_img.width > 800 or rgb_img.height > 800:
+            orb_img = rgb_img.copy()
+            orb_img.thumbnail((800, 800), Image.Resampling.BILINEAR)
+        else:
+            orb_img = rgb_img
+
+        img_np = np.array(orb_img)
         gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+        del img_np
+        if orb_img is not rgb_img:
+            del orb_img
         kps, des = _orb_detector.detectAndCompute(gray, None)
+        del gray
         return kps, des
     except Exception as exc:
         logger.error("Error extracting ORB descriptors: %s", exc)

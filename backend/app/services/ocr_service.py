@@ -56,8 +56,18 @@ def extract_text_clues(image: Image.Image) -> Dict[str, Any]:
         else:
             image_rgb = image
 
-        img_np = np.array(image_rgb)
+        # Cap image resolution to max 1280px for OCR to avoid massive ONNX tensor memory allocations
+        if image_rgb.width > 1280 or image_rgb.height > 1280:
+            ocr_image = image_rgb.copy()
+            ocr_image.thumbnail((1280, 1280), Image.Resampling.BILINEAR)
+        else:
+            ocr_image = image_rgb
+
+        img_np = np.array(ocr_image)
         ocr_result, _ = engine(img_np)
+        del img_np
+        if ocr_image is not image_rgb:
+            del ocr_image
 
         if not ocr_result:
             return {

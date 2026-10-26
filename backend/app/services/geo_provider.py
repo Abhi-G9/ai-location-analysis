@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import asyncio
 import json
 import logging
 import math
@@ -192,6 +193,7 @@ class NominatimGeoProvider(GeoDataProvider):
         self.user_agent = user_agent
         self.last_request_time = 0.0
         self.base_url = "https://nominatim.openstreetmap.org"
+        self._cache: Dict[str, Any] = {}
 
     def get_all_candidates(self) -> List[Dict[str, Any]]:
         return self.fallback.get_all_candidates()
@@ -208,11 +210,15 @@ class NominatimGeoProvider(GeoDataProvider):
         return self.fallback.get_candidates_by_category(category_label)
 
     async def reverse_geocode(self, latitude: float, longitude: float) -> Optional[Dict[str, Any]]:
+        cache_key = f"rev:{latitude:.4f},{longitude:.4f}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
         # Enforce 1 second rate limit between requests to respect OSM policy
         now = time.time()
         elapsed = now - self.last_request_time
         if elapsed < 1.0:
-            time.sleep(1.0 - elapsed)
+            await asyncio.sleep(max(0.0, 1.0 - elapsed))
         self.last_request_time = time.time()
 
         try:
@@ -240,7 +246,7 @@ class NominatimGeoProvider(GeoDataProvider):
                         or ""
                     )
                     district = addr.get("state_district") or addr.get("county") or addr.get("city") or ""
-                    return {
+                    result = {
                         "display_name": data.get("display_name", ""),
                         "road": addr.get("road") or addr.get("pedestrian"),
                         "suburb": area,
@@ -252,6 +258,8 @@ class NominatimGeoProvider(GeoDataProvider):
                         "postcode": addr.get("postcode") or "",
                         "source": "OpenStreetMap Nominatim",
                     }
+                    self._cache[cache_key] = result
+                    return result
         except Exception as exc:
             logger.warning("Nominatim API lookup failed or timed out: %s. Falling back to local index.", exc)
 
@@ -259,11 +267,16 @@ class NominatimGeoProvider(GeoDataProvider):
         return await self.fallback.reverse_geocode(latitude, longitude)
 
     async def search_places_by_text(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
+        clean_q = query.lower().strip()
+        cache_key = f"search:{clean_q}:{limit}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
         # Enforce 1 second rate limit between requests to respect OSM policy
         now = time.time()
         elapsed = now - self.last_request_time
         if elapsed < 1.0:
-            time.sleep(1.0 - elapsed)
+            await asyncio.sleep(max(0.0, 1.0 - elapsed))
         self.last_request_time = time.time()
 
         try:
@@ -321,6 +334,7 @@ class NominatimGeoProvider(GeoDataProvider):
                             "retrieval_reasons": [f"Recognized place/signage text matching '{query}' via OpenStreetMap"],
                         })
                     if candidates:
+                        self._cache[cache_key] = candidates
                         return candidates
         except Exception as exc:
             logger.warning("Nominatim search failed for '%s': %s", query, exc)

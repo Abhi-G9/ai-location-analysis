@@ -92,6 +92,10 @@ async def analyze_image(
     except Exception:
         oriented_img = raw_img
 
+    # Cap image resolution to max 1600px to ensure strict memory safety on Render (512MB RAM ceiling)
+    if oriented_img.width > 1600 or oriented_img.height > 1600:
+        oriented_img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+
     # 3. Extract OCR text
     ocr_result = extract_text_clues(oriented_img)
 
@@ -101,8 +105,22 @@ async def analyze_image(
     # 5. Extract semantic visual clues with OpenCLIP
     clip_result = analyze_with_clip(oriented_img)
 
+    # Optimize payload for Gemini API if raw image is large
+    if len(raw_bytes) > 1.2 * 1024 * 1024:
+        gemini_buf = io.BytesIO()
+        gemini_copy = oriented_img.copy()
+        if gemini_copy.width > 1280 or gemini_copy.height > 1280:
+            gemini_copy.thumbnail((1280, 1280), Image.Resampling.BILINEAR)
+        gemini_copy.convert("RGB").save(gemini_buf, format="JPEG", quality=82, optimize=True)
+        gemini_payload_bytes = gemini_buf.getvalue()
+        gemini_payload_mime = "image/jpeg"
+        del gemini_copy
+    else:
+        gemini_payload_bytes = raw_bytes
+        gemini_payload_mime = detected_mime
+
     # 5b. Run Google Gemini visual reasoning & Google Cloud Vision Web Detection concurrently (if enabled)
-    gemini_task = analyze_with_gemini(raw_bytes, detected_mime)
+    gemini_task = analyze_with_gemini(gemini_payload_bytes, gemini_payload_mime)
     if getattr(settings, "ENABLE_GOOGLE_VISION", False):
         vision_task = detect_web_and_landmarks(raw_bytes)
         gemini_result, google_vision_result = await asyncio.gather(gemini_task, vision_task)
@@ -373,12 +391,21 @@ async def analyze_image(
         f"{location_result['confidence_basis']}"
     )
 
+    size_bytes = len(raw_bytes)
+
+    # Explicit memory cleanup to prevent memory accumulation across requests on Render (512MB RAM ceiling)
+    del raw_img
+    del oriented_img
+    del raw_bytes
+    import gc
+    gc.collect()
+
     return AnalyzeResponse(
         status="valid",
         filename=sanitized_name,
         content_type=detected_mime,
         format=format_name,
-        size_bytes=len(raw_bytes),
+        size_bytes=size_bytes,
         dimensions=ImageDimensions(width=width, height=height),
         phase="AI Location Analysis",
         exif=exif_result,
